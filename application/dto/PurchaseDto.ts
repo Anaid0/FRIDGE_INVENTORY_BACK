@@ -9,6 +9,7 @@ export interface PurchaseListItemDto {
   purchasedAt: Date;
   total: string;
   itemsCount: number;
+  lines: { productName: string; quantity: number }[];
   hasReceipt: boolean;
   voidedAt: Date | null;
   createdAt: Date;
@@ -24,6 +25,9 @@ export interface PurchaseItemDetailDto {
   quantity: number;
   unitPrice: string;
   subtotal: string;
+  /** Si se compró por paquetes. */
+  packageCount: number | null;
+  unitsPerPackage: number | null;
 }
 
 export interface PurchaseDetailDto {

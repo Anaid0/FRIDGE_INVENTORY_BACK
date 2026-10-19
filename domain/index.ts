@@ -40,3 +40,6 @@ export * from './purchase/PurchaseItem';
 export * from './purchase/PurchaseRepository';
 export * from './purchase/PurchaseView';
 export * from './purchase/SpendingReportReader';
+export * from './ranking/PeriodRanking';
+export * from './ranking/PeriodRankingRepository';
+export * from './charge/ConsumptionCharge';

@@ -28,13 +28,16 @@ export interface KioskPersonDto {
   name: string;
   lastname: string;
   initials: string;
+  /** Si la persona está bloqueada por PIN incorrectos: hasta cuándo (si no, null). */
+  pinLockedUntil: Date | null;
 }
 
-export function toKioskPersonDto(person: User): KioskPersonDto {
+export function toKioskPersonDto(person: User, now: Date): KioskPersonDto {
   return {
     id: person.id,
     name: person.name,
     lastname: person.lastname,
     initials: `${person.name.charAt(0)}${person.lastname.charAt(0)}`.toUpperCase(),
+    pinLockedUntil: person.isPinLocked(now) ? person.pinLockedUntil : null,
   };
 }

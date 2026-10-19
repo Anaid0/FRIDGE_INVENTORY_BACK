@@ -6,6 +6,7 @@ import {
   Purchase,
   PurchaseItem,
   Quantity,
+  ValidationError,
   type Actor,
   type Page,
   type ProductRepository,
@@ -30,13 +31,76 @@ async function getPurchaseOrFail(purchases: PurchaseRepository, id: string): Pro
   return purchase;
 }
 
+/**
+ * Una línea de la compra, de una de estas formas:
+ * - por unidad: `quantity` + `unitPrice`;
+ * - por total: `quantity` + `total` (lo pagado por todas las unidades);
+ * - por paquetes: `packageCount` + `unitsPerPackage` + (`packagePrice` o `total`, si hubo descuento).
+ * Con total o paquetes, el precio unitario es total ÷ unidades.
+ */
+export interface PurchaseLineInput {
+  productId: string;
+  quantity?: number;
+  unitPrice?: string | number;
+  total?: string | number;
+  packageCount?: number;
+  unitsPerPackage?: number;
+  packagePrice?: string | number;
+}
+
+function toPurchaseItem(line: PurchaseLineInput, id: string): PurchaseItem {
+  if (line.packageCount !== undefined || line.unitsPerPackage !== undefined) {
+    const packages = Quantity.create(line.packageCount ?? 0);
+    const perPackage = Quantity.create(line.unitsPerPackage ?? 0);
+    const total =
+      line.total !== undefined
+        ? Money.fromDecimal(line.total)
+        : line.packagePrice !== undefined
+          ? Money.fromDecimal(line.packagePrice).multiply(packages.value)
+          : null;
+    if (!total) {
+      throw new ValidationError('Indica el precio por paquete o el total pagado', 'INVALID_PACKAGES', {
+        productId: line.productId,
+      });
+    }
+    return PurchaseItem.fromTotal({
+      id,
+      productId: line.productId,
+      quantity: Quantity.create(packages.value * perPackage.value),
+      total,
+      packageCount: packages,
+      unitsPerPackage: perPackage,
+    });
+  }
+  const quantity = Quantity.create(line.quantity ?? 0);
+  if (line.total !== undefined) {
+    return PurchaseItem.fromTotal({
+      id,
+      productId: line.productId,
+      quantity,
+      total: Money.fromDecimal(line.total),
+    });
+  }
+  if (line.unitPrice === undefined) {
+    throw new ValidationError('Indica el precio unitario o el total pagado', 'INVALID_PRICE', {
+      productId: line.productId,
+    });
+  }
+  return PurchaseItem.create({
+    id,
+    productId: line.productId,
+    quantity,
+    unitPrice: Money.fromDecimal(line.unitPrice),
+  });
+}
+
 export interface RegisterPurchaseInput {
   periodId: string;
   buyerId: string;
   store?: string | null;
   purchasedAt: Date;
   note?: string | null;
-  items: { productId: string; quantity: number; unitPrice: string | number }[];
+  items: PurchaseLineInput[];
   receipt?: FileToStore | null;
 }
 
@@ -58,14 +122,7 @@ export class RegisterPurchaseUseCase {
     if (input.receipt) assertValidReceipt(input.receipt);
 
     // Validar las líneas antes de tocar el almacenamiento o la base de datos.
-    const items = input.items.map((item) =>
-      PurchaseItem.create({
-        id: this.ids.generate(),
-        productId: item.productId,
-        quantity: Quantity.create(item.quantity),
-        unitPrice: Money.fromDecimal(item.unitPrice),
-      }),
-    );
+    const items = input.items.map((line) => toPurchaseItem(line, this.ids.generate()));
 
     const receiptPath = input.receipt ? await this.storage.save(RECEIPTS_FOLDER, input.receipt) : null;
     try {

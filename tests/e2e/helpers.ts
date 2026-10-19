@@ -33,10 +33,13 @@ export async function createE2EContext() {
 
   /** Vacía las tablas en el orden de las FK (sin desactivar FOREIGN_KEY_CHECKS, que es por conexión). */
   async function reset() {
+    await prisma.periodRankingEntry.deleteMany();
+    await prisma.periodRanking.deleteMany();
     await prisma.inventoryMovement.deleteMany();
     await prisma.purchaseItem.deleteMany();
     await prisma.purchase.deleteMany();
     await prisma.contribution.deleteMany();
+    await prisma.consumptionCharge.deleteMany();
     await prisma.fundingPeriod.deleteMany();
     await prisma.product.deleteMany();
     await prisma.category.deleteMany();

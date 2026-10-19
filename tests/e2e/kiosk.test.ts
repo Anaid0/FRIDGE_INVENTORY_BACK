@@ -63,8 +63,8 @@ describe('Tablet: autorización (e2e)', () => {
 
     const people = await api().get('/api/kiosk/people').set(bearer(kioskToken)).expect(200);
     expect(people.body).toEqual([
-      { id: ana.id, name: 'Ana', lastname: 'E2E', initials: 'AE' },
-      { id: luis.id, name: 'Luis', lastname: 'E2E', initials: 'LE' },
+      { id: ana.id, name: 'Ana', lastname: 'E2E', initials: 'AE', pinLockedUntil: null },
+      { id: luis.id, name: 'Luis', lastname: 'E2E', initials: 'LE', pinLockedUntil: null },
     ]);
   });
 

@@ -45,7 +45,7 @@ export class GetDashboardSummaryUseCase {
     return {
       activeProducts: products.length,
       totalUnits: products.reduce((sum, product) => sum + product.quantity, 0),
-      lowStockProducts: products.filter((product) => product.isLowStock()).map(toProductDto),
+      lowStockProducts: products.filter((product) => product.isLowStock()).map((p) => toProductDto(p)),
       topWithdrawer: allTime[0] ?? null,
       topWithdrawers: { allTime, last30Days },
       latestMovements,

@@ -73,6 +73,7 @@ export function toProduct(row: Db.Product): Product {
     quantity: row.quantity,
     minStock: row.minStock,
     categoryId: row.categoryId,
+    referencePrice: row.referencePrice ? toMoney(row.referencePrice) : null,
     isActive: row.isActive,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -88,6 +89,7 @@ export function fromProduct(product: Product) {
     quantity: product.quantity,
     minStock: product.minStock,
     categoryId: product.categoryId,
+    referencePrice: product.referencePrice?.toDecimalString() ?? null,
     isActive: product.isActive,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
@@ -107,6 +109,7 @@ export function toMovement(row: Db.InventoryMovement): InventoryMovement {
     registeredBy: row.registeredBy,
     note: row.note,
     purchaseItemId: row.purchaseItemId,
+    unitPrice: row.unitPrice ? toMoney(row.unitPrice) : null,
     createdAt: row.createdAt,
   });
 }
@@ -150,6 +153,7 @@ export function toContribution(row: Db.Contribution): Contribution {
     paidAt: row.paidAt,
     registeredBy: row.registeredBy,
     note: row.note,
+    chargeId: row.chargeId,
     createdAt: row.createdAt,
   });
 }
@@ -167,6 +171,9 @@ export function toPurchase(row: Db.Purchase & { items: Db.PurchaseItem[] }): Pur
         productId: item.productId,
         quantity: item.quantity,
         unitPrice: toMoney(item.unitPrice),
+        subtotal: toMoney(item.subtotal),
+        packageCount: item.packageCount,
+        unitsPerPackage: item.unitsPerPackage,
       }),
     ),
     receiptPath: row.receiptPath,

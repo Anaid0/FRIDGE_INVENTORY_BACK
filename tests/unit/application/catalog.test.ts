@@ -19,7 +19,7 @@ async function setup() {
     listCategories: new ListCategoriesUseCase(repos.categories),
     createProduct: new CreateProductUseCase(uow, repos.categories, recorder, ids, clock),
     updateProduct: new UpdateProductUseCase(repos.products, repos.categories, clock),
-    listProducts: new ListProductsUseCase(repos.products),
+    listProducts: new ListProductsUseCase(repos.products, repos.purchases, clock),
     getProduct: new GetProductUseCase(repos.products, repos.movements),
     stockOut: new RegisterStockOutUseCase(uow, recorder, clock),
   };

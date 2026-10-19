@@ -1,6 +1,7 @@
 import { InsufficientStockError } from '../errors/InsufficientStockError';
-import { ConflictError } from '../shared/DomainError';
+import { ConflictError, ValidationError } from '../shared/DomainError';
 import { Guard } from '../shared/Guard';
+import type { Money } from '../shared/Money';
 import type { Quantity } from './Quantity';
 import type { StockChange } from './StockChange';
 
@@ -12,6 +13,8 @@ export interface ProductProps {
   quantity: number; // stock actual
   minStock: number;
   categoryId: string | null;
+  /** Valora lo que se saca si el producto nunca se ha comprado (regalos, stock inicial). Opcional. */
+  referencePrice?: Money | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -23,6 +26,7 @@ export interface ProductDetails {
   unit?: string;
   minStock?: number;
   categoryId?: string | null;
+  referencePrice?: Money | null;
 }
 
 const NAME_MAX = 120;
@@ -57,6 +61,9 @@ export class Product {
   }
   get description(): string | null {
     return this.props.description;
+  }
+  get referencePrice(): Money | null {
+    return this.props.referencePrice ?? null;
   }
   get unit(): string {
     return this.props.unit;
@@ -125,6 +132,15 @@ export class Product {
     }
   }
 
+  private static validatePrice(price: Money | null): Money | null {
+    if (price && price.isNegative()) {
+      throw new ValidationError('El precio no puede ser negativo', 'INVALID_PRICE', {
+        price: price.toDecimalString(),
+      });
+    }
+    return price;
+  }
+
   private static validateDetails(details: ProductDetails) {
     return {
       name: Guard.requiredText(details.name, 'name', NAME_MAX),
@@ -132,6 +148,7 @@ export class Product {
       unit: Guard.optionalText(details.unit, 'unit', UNIT_MAX) ?? DEFAULT_UNIT,
       minStock: Guard.nonNegativeInteger(details.minStock ?? 0, 'minStock'),
       categoryId: details.categoryId ?? null,
+      referencePrice: Product.validatePrice(details.referencePrice ?? null),
     };
   }
 }

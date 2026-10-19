@@ -14,7 +14,7 @@ import {
   VoidPurchaseUseCase,
   type RegisterPurchaseInput,
 } from '../../../application';
-import { createOfficeContext } from '../../support/testContext';
+import { createOfficeContext, TZ } from '../../support/testContext';
 
 const receipt = { content: new Uint8Array([1, 2, 3]), originalName: 'recibo.jpg', mimeType: 'image/jpeg' };
 
@@ -56,7 +56,7 @@ async function setup() {
     byCategory: new GetSpendingByCategoryUseCase(repos.reports),
     priceHistory: new GetProductPriceHistoryUseCase(repos.reports, repos.products),
     stockOut: new RegisterStockOutUseCase(uow, recorder, clock),
-    ranking: new GetTopWithdrawersUseCase(repos.movements, clock),
+    ranking: new GetTopWithdrawersUseCase(repos.movements, repos.periods, clock, TZ),
   };
 }
 
@@ -308,6 +308,10 @@ describe('Consultas de compras', () => {
       itemsCount: 2,
       periodName: 'Quincena 2026-10-16',
     });
+    expect(all.items[1]!.lines).toEqual([
+      { productName: 'Gaseosa', quantity: 12 },
+      { productName: 'Yogur', quantity: 6 },
+    ]);
     expect((await list.execute({ buyerId: luis.id })).total).toBe(1);
     expect((await list.execute({ productId: yogur.id })).total).toBe(1);
     expect((await list.execute({ from: new Date('2026-10-18') })).total).toBe(1);
@@ -392,5 +396,68 @@ describe('Reportes de gasto', () => {
       spent: '10600.00',
       averageUnitPrice: '2600.00',
     });
+  });
+});
+
+describe('Compra por paquetes o por total', () => {
+  it('el precio unitario es lo pagado ÷ unidades; el total de la compra es exactamente lo pagado', async () => {
+    const ctx = await setup();
+    const { register, period, asAdmin, ana, gaseosa, yogur, stockOf } = ctx;
+    const choco = await ctx.seedProduct('Chocorramo');
+
+    const purchase = await register.execute(
+      {
+        periodId: period.id,
+        buyerId: ana.id,
+        purchasedAt: new Date('2026-10-16T15:00:00Z'),
+        items: [
+          // 2 sixpacks a $13.800
+          { productId: gaseosa.id, packageCount: 2, unitsPerPackage: 6, packagePrice: '13800' },
+          // 12 unidades por $20.600 en total → $1.716,67 c/u
+          { productId: yogur.id, quantity: 12, total: '20600' },
+          // 2 paquetes de 5 con descuento en el segundo: $15.000 + $9.000
+          { productId: choco.id, packageCount: 2, unitsPerPackage: 5, total: '24000' },
+        ],
+      },
+      asAdmin,
+    );
+
+    expect(purchase.total).toBe('72200.00');
+    expect(
+      purchase.items.map((i) => [
+        i.product.name,
+        i.quantity,
+        i.unitPrice,
+        i.subtotal,
+        i.packageCount,
+        i.unitsPerPackage,
+      ]),
+    ).toEqual([
+      ['Gaseosa', 12, '2300.00', '27600.00', 2, 6],
+      ['Yogur', 12, '1716.67', '20600.00', null, null],
+      ['Chocorramo', 10, '2400.00', '24000.00', 2, 5],
+    ]);
+    expect(await stockOf(choco.id)).toBe(10);
+  });
+
+  it('valida las líneas por paquetes', async () => {
+    const { register, period, asAdmin, ana, gaseosa } = await setup();
+    const line = (extra: object) =>
+      register.execute(
+        {
+          periodId: period.id,
+          buyerId: ana.id,
+          purchasedAt: new Date('2026-10-16T15:00:00Z'),
+          items: [{ productId: gaseosa.id, ...extra }],
+        },
+        asAdmin,
+      );
+    await expect(line({ packageCount: 2, unitsPerPackage: 6 })).rejects.toMatchObject({
+      code: 'INVALID_PACKAGES',
+    });
+    await expect(line({ packageCount: 0, unitsPerPackage: 6, packagePrice: 100 })).rejects.toMatchObject({
+      code: 'INVALID_QUANTITY',
+    });
+    await expect(line({ quantity: 3 })).rejects.toMatchObject({ code: 'INVALID_PRICE' });
   });
 });

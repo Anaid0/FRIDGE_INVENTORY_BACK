@@ -11,6 +11,8 @@ export interface PurchaseListItem {
   purchasedAt: Date;
   total: Money;
   itemsCount: number;
+  /** Resumen de las líneas ("12 Coca cola"), en el orden en que se registraron. */
+  lines: { productName: string; quantity: number }[];
   hasReceipt: boolean;
   voidedAt: Date | null;
   createdAt: Date;

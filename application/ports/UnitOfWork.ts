@@ -1,4 +1,5 @@
 import type {
+  ConsumptionChargeRepository,
   ContributionRepository,
   FundingPeriodRepository,
   MovementRepository,
@@ -15,6 +16,7 @@ export interface TransactionalRepositories {
   periods: FundingPeriodRepository;
   contributions: ContributionRepository;
   purchases: PurchaseRepository;
+  charges: ConsumptionChargeRepository;
 }
 
 /**

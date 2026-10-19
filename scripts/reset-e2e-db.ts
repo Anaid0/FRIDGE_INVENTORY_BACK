@@ -16,10 +16,13 @@ async function main() {
   const prisma = createPrismaClient(env.DATABASE_URL!);
   try {
     // Orden de las FK: no hace falta desactivar FOREIGN_KEY_CHECKS.
+    await prisma.periodRankingEntry.deleteMany();
+    await prisma.periodRanking.deleteMany();
     await prisma.inventoryMovement.deleteMany();
     await prisma.purchaseItem.deleteMany();
     await prisma.purchase.deleteMany();
     await prisma.contribution.deleteMany();
+    await prisma.consumptionCharge.deleteMany();
     await prisma.fundingPeriod.deleteMany();
     await prisma.product.deleteMany();
     await prisma.category.deleteMany();

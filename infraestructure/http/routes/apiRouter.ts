@@ -5,6 +5,7 @@ import type { Container } from '../../config/container';
 import { asyncHandler as h } from '../asyncHandler';
 import { AuthController } from '../controllers/AuthController';
 import { CatalogController } from '../controllers/CatalogController';
+import { ChargeController } from '../controllers/ChargeController';
 import { FundingController } from '../controllers/FundingController';
 import { KioskController } from '../controllers/KioskController';
 import { MovementController } from '../controllers/MovementController';
@@ -30,6 +31,7 @@ export function apiRouter(container: Container): Router {
   const funding = new FundingController(useCases);
   const purchases = new PurchaseController(useCases);
   const reports = new ReportController(useCases);
+  const charges = new ChargeController(useCases);
   const kiosk = new KioskController(useCases);
 
   // --- Públicas ---
@@ -60,6 +62,11 @@ export function apiRouter(container: Container): Router {
   router.get('/products/:id', h(catalog.getProduct));
   router.get('/movements', h(movements.list));
   router.get('/stats/top-withdrawers', h(movements.topWithdrawers));
+  router.get('/stats/hungriest/latest', h(funding.latestRanking));
+  // El más hambriento de la quincena: verlo y calcularlo también desde la tablet (ver ComputePeriodRankingUseCase).
+  router.get('/stats/ranking-periods', h(funding.rankingPeriods));
+  router.get('/funding-periods/:id/ranking', h(funding.ranking));
+  router.post('/funding-periods/:id/ranking', h(funding.computeRanking));
   router.get('/dashboard/summary', h(movements.dashboard));
 
   // Solo tablet. Además del bloqueo por persona (5 PIN incorrectos), límite de peticiones por tablet.
@@ -93,6 +100,7 @@ export function apiRouter(container: Container): Router {
   router.patch('/users/:id', admin, h(users.update));
 
   router.get('/people', admin, h(people.list));
+  router.get('/stats/people-activity', admin, h(movements.peopleActivity));
   router.post('/people', admin, h(people.register));
   router.patch('/people/:id', admin, h(people.update));
   router.post('/people/:id/pin', admin, h(people.resetPin));
@@ -110,6 +118,11 @@ export function apiRouter(container: Container): Router {
   router.post('/funding-periods', admin, h(funding.open));
   router.patch('/funding-periods/:id/close', admin, h(funding.close));
   router.post('/funding-periods/:id/contributions', admin, h(funding.contribute));
+  // Quien más consume, más aporta: cobros por lo consumido en cada quincena (se generan al cerrarla).
+  router.get('/funding-periods/:id/charges', h(charges.byPeriod));
+  router.post('/funding-periods/:id/charges', admin, h(charges.generate));
+  router.get('/charges/pending', h(charges.pending));
+  router.post('/charges/:id/payments', admin, h(charges.pay));
 
   router.get('/purchases', h(purchases.list));
   router.get('/purchases/:id', h(purchases.detail));

@@ -15,6 +15,7 @@ export class PrismaContributionRepository implements ContributionRepository {
         paidAt: contribution.paidAt,
         registeredBy: contribution.registeredBy,
         note: contribution.note,
+        chargeId: contribution.chargeId,
         createdAt: contribution.createdAt,
       },
     });
@@ -23,7 +24,11 @@ export class PrismaContributionRepository implements ContributionRepository {
   async findByPeriod(periodId: string): Promise<ContributionView[]> {
     const rows = await this.db.contribution.findMany({
       where: { periodId },
-      include: { user: userRefSelect, registrar: userRefSelect },
+      include: {
+        user: userRefSelect,
+        registrar: userRefSelect,
+        charge: { select: { id: true, periodId: true, period: { select: { name: true } } } },
+      },
       orderBy: [{ paidAt: 'asc' }, { createdAt: 'asc' }],
     });
     return rows.map((row) => ({
@@ -33,6 +38,9 @@ export class PrismaContributionRepository implements ContributionRepository {
       amount: toMoney(row.amount),
       paidAt: row.paidAt,
       note: row.note,
+      charge: row.charge
+        ? { id: row.charge.id, periodId: row.charge.periodId, periodName: row.charge.period.name }
+        : null,
       registeredBy: toUserRef(row.registrar),
       createdAt: row.createdAt,
     }));

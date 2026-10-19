@@ -22,6 +22,8 @@ export async function buildPurchaseDetail(
         quantity: item.quantity,
         unitPrice: item.unitPrice.toDecimalString(),
         subtotal: item.subtotal.toDecimalString(),
+        packageCount: item.packageCount,
+        unitsPerPackage: item.unitsPerPackage,
       };
     }),
   );

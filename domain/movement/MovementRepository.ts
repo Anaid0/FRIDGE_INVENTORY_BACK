@@ -1,9 +1,10 @@
+import type { PersonConsumption } from '../charge/ConsumptionCharge';
 import type { DateRange, Page, PageRequest } from '../shared/Pagination';
 import type { InventoryMovement } from './InventoryMovement';
 import type { MovementSource } from './MovementSource';
 import type { MovementType } from './MovementType';
 import type { MovementView } from './MovementView';
-import type { TopWithdrawer } from './TopWithdrawer';
+import type { PersonActivity, TopWithdrawer } from './TopWithdrawer';
 
 export interface MovementFilter extends DateRange {
   type?: MovementType;
@@ -20,4 +21,11 @@ export interface MovementRepository {
   findLatest(limit: number): Promise<MovementView[]>;
   /** Ranking de retiros reales (type = OUT y source = MANUAL) agrupado por performed_by, de mayor a menor. */
   findTopWithdrawers(range: DateRange, limit: number): Promise<TopWithdrawer[]>;
+  /** Por persona (performed_by): unidades sacadas y metidas a mano. Solo personas con algún movimiento. */
+  findActivityByPerson(range: DateRange): Promise<PersonActivity[]>;
+  /**
+   * Consumo en dinero por persona (retiros manuales): cantidad × precio guardado al sacar; si no se guardó,
+   * el precio de referencia del producto; si tampoco hay, $0 (y cuenta en `unpricedUnits`).
+   */
+  findConsumptionByPerson(range: DateRange): Promise<PersonConsumption[]>;
 }

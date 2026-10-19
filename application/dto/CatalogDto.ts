@@ -1,4 +1,4 @@
-import type { Category, Product } from '../../domain';
+import type { Category, Money, Product } from '../../domain';
 
 export interface CategoryDto {
   id: string;
@@ -19,12 +19,17 @@ export interface ProductDto {
   minStock: number;
   isLowStock: boolean;
   categoryId: string | null;
+  /** Precio que puso el admin para productos sin compras (decimal) o null. */
+  referencePrice: string | null;
+  /** Lo que vale una unidad hoy al sacarla: última compra o, si no hay, el de referencia. null si no se sabe. */
+  currentPrice: string | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export function toProductDto(product: Product): ProductDto {
+export function toProductDto(product: Product, lastPurchasePrice: Money | null = null): ProductDto {
+  const current = lastPurchasePrice ?? product.referencePrice;
   return {
     id: product.id,
     name: product.name,
@@ -34,6 +39,8 @@ export function toProductDto(product: Product): ProductDto {
     minStock: product.minStock,
     isLowStock: product.isLowStock(),
     categoryId: product.categoryId,
+    referencePrice: product.referencePrice?.toDecimalString() ?? null,
+    currentPrice: current?.toDecimalString() ?? null,
     isActive: product.isActive,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,

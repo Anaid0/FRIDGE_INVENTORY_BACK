@@ -7,6 +7,11 @@ import {
   PairKioskDeviceUseCase,
   RevokeKioskDeviceUseCase,
   CloseFundingPeriodUseCase,
+  ConsumptionChargeGenerator,
+  GenerateConsumptionChargesUseCase,
+  GetPeriodChargesUseCase,
+  ListPendingChargesUseCase,
+  PayConsumptionChargeUseCase,
   CreateCategoryUseCase,
   CreateProductUseCase,
   GetCurrentFundingPeriodUseCase,
@@ -20,6 +25,11 @@ import {
   GetSpendingByCategoryUseCase,
   GetSpendingByProductUseCase,
   GetTopWithdrawersUseCase,
+  GetPeopleActivityUseCase,
+  ComputePeriodRankingUseCase,
+  GetLatestPeriodRankingUseCase,
+  GetPeriodRankingUseCase,
+  ListRankingPeriodsUseCase,
   ListCategoriesUseCase,
   ListFundingPeriodsUseCase,
   ListMovementsUseCase,
@@ -50,9 +60,11 @@ import { createLogger } from '../logging/logger';
 import { createPrismaClient } from '../persistence/prisma/prismaClient';
 import { PrismaUnitOfWork } from '../persistence/prisma/PrismaUnitOfWork';
 import { PrismaCategoryRepository } from '../persistence/prisma/repositories/PrismaCategoryRepository';
+import { PrismaConsumptionChargeRepository } from '../persistence/prisma/repositories/PrismaConsumptionChargeRepository';
 import { PrismaContributionRepository } from '../persistence/prisma/repositories/PrismaContributionRepository';
 import { PrismaKioskDeviceRepository } from '../persistence/prisma/repositories/PrismaKioskDeviceRepository';
 import { PrismaFundingPeriodRepository } from '../persistence/prisma/repositories/PrismaFundingPeriodRepository';
+import { PrismaPeriodRankingRepository } from '../persistence/prisma/repositories/PrismaPeriodRankingRepository';
 import { PrismaMovementRepository } from '../persistence/prisma/repositories/PrismaMovementRepository';
 import { PrismaProductRepository } from '../persistence/prisma/repositories/PrismaProductRepository';
 import { PrismaPurchaseRepository } from '../persistence/prisma/repositories/PrismaPurchaseRepository';
@@ -90,11 +102,17 @@ export function createContainer(env: Env) {
   const purchases = new PrismaPurchaseRepository(prisma);
   const reports = new PrismaSpendingReportReader(prisma);
   const kioskDevices = new PrismaKioskDeviceRepository(prisma);
+  const rankings = new PrismaPeriodRankingRepository(prisma);
+  const timeZone = env.APP_TIMEZONE;
 
   // Servicios de aplicación compartidos
   const recorder = new StockMovementRecorder(ids);
   const adminSafety = new AdminSafetyPolicy(users);
   const pinVerifier = new PinVerifier(hasher, clock);
+  const chargeGenerator = new ConsumptionChargeGenerator(ids, env.APP_TIMEZONE);
+  const charges = new PrismaConsumptionChargeRepository(prisma);
+
+  const getPeriodCharges = new GetPeriodChargesUseCase(periods, movements, charges, users, env.APP_TIMEZONE);
 
   const useCases = {
     login: new LoginUseCase(users, hasher, tokens),
@@ -116,7 +134,7 @@ export function createContainer(env: Env) {
     listKioskDevices: new ListKioskDevicesUseCase(kioskDevices, users),
     revokeKioskDevice: new RevokeKioskDeviceUseCase(kioskDevices, users, clock),
     authenticateKioskDevice: new AuthenticateKioskDeviceUseCase(kioskDevices, clock),
-    listKioskPeople: new ListKioskPeopleUseCase(users),
+    listKioskPeople: new ListKioskPeopleUseCase(users, clock),
     kioskRegisterMovements: new KioskRegisterMovementsUseCase(uow, users, pinVerifier, recorder, clock),
 
     createCategory: new CreateCategoryUseCase(categories, ids, clock),
@@ -124,20 +142,42 @@ export function createContainer(env: Env) {
 
     createProduct: new CreateProductUseCase(uow, categories, recorder, ids, clock),
     updateProduct: new UpdateProductUseCase(products, categories, clock),
-    listProducts: new ListProductsUseCase(products),
+    listProducts: new ListProductsUseCase(products, purchases, clock),
     getProduct: new GetProductUseCase(products, movements),
 
     registerStockIn: new RegisterStockInUseCase(uow, recorder, clock),
     registerStockOut: new RegisterStockOutUseCase(uow, recorder, clock),
     listMovements: new ListMovementsUseCase(movements),
-    getTopWithdrawers: new GetTopWithdrawersUseCase(movements, clock),
+    getTopWithdrawers: new GetTopWithdrawersUseCase(movements, periods, clock, timeZone),
+    getPeopleActivity: new GetPeopleActivityUseCase(movements, periods, timeZone),
+    computePeriodRanking: new ComputePeriodRankingUseCase(
+      periods,
+      movements,
+      rankings,
+      users,
+      kioskDevices,
+      clock,
+      timeZone,
+    ),
+    getPeriodRanking: new GetPeriodRankingUseCase(periods, rankings, users, kioskDevices, clock, timeZone),
+    getLatestPeriodRanking: new GetLatestPeriodRankingUseCase(periods, rankings, users, kioskDevices),
+    listRankingPeriods: new ListRankingPeriodsUseCase(periods, rankings, clock, timeZone),
 
     openFundingPeriod: new OpenFundingPeriodUseCase(periods, ids, clock),
-    closeFundingPeriod: new CloseFundingPeriodUseCase(periods, clock),
+    closeFundingPeriod: new CloseFundingPeriodUseCase(uow, chargeGenerator, clock),
     listFundingPeriods: new ListFundingPeriodsUseCase(periods),
     getCurrentFundingPeriod: new GetCurrentFundingPeriodUseCase(periods),
     getFundingPeriodDetail: new GetFundingPeriodDetailUseCase(periods, contributions, purchases),
     registerContribution: new RegisterContributionUseCase(periods, users, contributions, ids, clock),
+    getPeriodCharges,
+    generateConsumptionCharges: new GenerateConsumptionChargesUseCase(
+      uow,
+      chargeGenerator,
+      getPeriodCharges,
+      clock,
+    ),
+    listPendingCharges: new ListPendingChargesUseCase(charges),
+    payConsumptionCharge: new PayConsumptionChargeUseCase(periods, charges, contributions, ids, clock),
 
     registerPurchase: new RegisterPurchaseUseCase(uow, recorder, storage, ids, clock),
     voidPurchase: new VoidPurchaseUseCase(uow, recorder, clock),

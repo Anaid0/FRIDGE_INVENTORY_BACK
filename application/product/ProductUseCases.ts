@@ -2,6 +2,7 @@ import {
   ConflictError,
   MovementType,
   NotFoundError,
+  Money,
   Product,
   Quantity,
   type Actor,
@@ -10,6 +11,7 @@ import {
   type MovementView,
   type ProductFilter,
   type ProductRepository,
+  type PurchaseRepository,
 } from '../../domain';
 import { toProductDto, type ProductDto } from '../dto';
 import type { StockMovementRecorder } from '../movement/StockMovementRecorder';
@@ -33,9 +35,14 @@ export interface CreateProductInput {
   unit?: string;
   minStock?: number;
   categoryId?: string | null;
+  /** Precio de referencia (decimal): valora lo que se saca si el producto nunca se ha comprado. */
+  referencePrice?: string | number | null;
   /** Stock inicial opcional: se registra como una entrada a nombre del admin. */
   initialQuantity?: number;
 }
+
+const toPrice = (value: string | number | null | undefined): Money | null =>
+  value === null || value === undefined || value === '' ? null : Money.fromDecimal(value);
 
 export class CreateProductUseCase {
   constructor(
@@ -51,7 +58,12 @@ export class CreateProductUseCase {
     await assertCategoryExists(this.categories, input.categoryId);
     const initial = input.initialQuantity ? Quantity.create(input.initialQuantity) : null;
     const now = this.clock.now();
-    const product = Product.create({ ...input, id: this.ids.generate(), now });
+    const product = Product.create({
+      ...input,
+      referencePrice: toPrice(input.referencePrice),
+      id: this.ids.generate(),
+      now,
+    });
 
     return this.uow.run(async (repos) => {
       if (await repos.products.findByName(product.name)) throw nameTaken(product.name);
@@ -78,6 +90,7 @@ export interface UpdateProductInput {
   unit?: string;
   minStock?: number;
   categoryId?: string | null;
+  referencePrice?: string | number | null;
   isActive?: boolean;
 }
 
@@ -103,6 +116,8 @@ export class UpdateProductUseCase {
         unit: input.unit ?? product.unit,
         minStock: input.minStock ?? product.minStock,
         categoryId: input.categoryId !== undefined ? input.categoryId : product.categoryId,
+        referencePrice:
+          input.referencePrice !== undefined ? toPrice(input.referencePrice) : product.referencePrice,
       },
       now,
     );
@@ -118,11 +133,21 @@ export class UpdateProductUseCase {
   }
 }
 
+/** Lista de productos con su precio actual (última compra, o el de referencia). */
 export class ListProductsUseCase {
-  constructor(private readonly products: ProductRepository) {}
+  constructor(
+    private readonly products: ProductRepository,
+    private readonly purchases: PurchaseRepository,
+    private readonly clock: Clock,
+  ) {}
 
   async execute(filter: ProductFilter = {}): Promise<ProductDto[]> {
-    return (await this.products.findAll(filter)).map(toProductDto);
+    const products = await this.products.findAll(filter);
+    const prices = await this.purchases.findLatestUnitPrices(
+      products.map((p) => p.id),
+      this.clock.now(),
+    );
+    return products.map((p) => toProductDto(p, prices.get(p.id) ?? null));
   }
 }
 

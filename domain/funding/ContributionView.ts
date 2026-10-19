@@ -8,6 +8,8 @@ export interface ContributionView {
   amount: Money;
   paidAt: Date;
   note: string | null;
+  /** Pago de un cobro por consumo: de qué quincena era el cobro. */
+  charge: { id: string; periodId: string; periodName: string } | null;
   registeredBy: UserRef;
   createdAt: Date;
 }

@@ -8,3 +8,4 @@ uploads/
 .DS_Store
 infraestructure/persistence/prisma/generated/
 uploads-e2e/
+backups/

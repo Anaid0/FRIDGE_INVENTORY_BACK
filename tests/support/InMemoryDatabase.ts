@@ -1,5 +1,6 @@
 import {
   Category,
+  ConsumptionCharge,
   FundingPeriod,
   KioskDevice,
   Product,
@@ -7,6 +8,7 @@ import {
   User,
   type Contribution,
   type InventoryMovement,
+  type PeriodRanking,
 } from '../../domain';
 
 /**
@@ -23,6 +25,8 @@ export class InMemoryDatabase {
   contributions: Contribution[] = []; // inmutables
   purchases = new Map<string, Purchase>();
   kioskDevices = new Map<string, KioskDevice>();
+  rankings = new Map<string, PeriodRanking>(); // por periodId; se reemplazan enteros
+  charges = new Map<string, ConsumptionCharge>();
 
   /** Copia superficial suficiente: lo guardado nunca se muta en el lugar. */
   snapshot() {
@@ -35,6 +39,8 @@ export class InMemoryDatabase {
       contributions: [...this.contributions],
       purchases: new Map(this.purchases),
       kioskDevices: new Map(this.kioskDevices),
+      rankings: new Map(this.rankings),
+      charges: new Map(this.charges),
     };
   }
 
@@ -44,6 +50,16 @@ export class InMemoryDatabase {
 }
 
 export const clone = {
+  charge: (c: ConsumptionCharge) =>
+    ConsumptionCharge.restore({
+      id: c.id,
+      periodId: c.periodId,
+      userId: c.userId,
+      amount: c.amount,
+      units: c.units,
+      unpricedUnits: c.unpricedUnits,
+      computedAt: c.computedAt,
+    }),
   user: (u: User) =>
     User.restore({
       id: u.id,
@@ -69,6 +85,7 @@ export const clone = {
       quantity: p.quantity,
       minStock: p.minStock,
       categoryId: p.categoryId,
+      referencePrice: p.referencePrice,
       isActive: p.isActive,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,

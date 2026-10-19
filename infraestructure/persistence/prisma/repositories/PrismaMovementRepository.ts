@@ -1,4 +1,5 @@
 import {
+  valueConsumption,
   MovementSource,
   MovementType,
   type DateRange,
@@ -8,10 +9,12 @@ import {
   type MovementView,
   type Page,
   type PageRequest,
+  type PersonActivity,
+  type PersonConsumption,
   type TopWithdrawer,
 } from '../../../../domain';
 import type { Prisma } from '../generated/client';
-import { toUserRef, userRefSelect } from '../mappers';
+import { toMoney, toUserRef, userRefSelect } from '../mappers';
 import type { DbClient } from '../types';
 
 const viewInclude = {
@@ -47,6 +50,7 @@ function toView(row: MovementRow): MovementView {
     performedBy: toUserRef(row.performer),
     registeredBy: toUserRef(row.registrar),
     purchaseId: row.purchaseItem?.purchaseId ?? null,
+    unitPrice: row.unitPrice ? toMoney(row.unitPrice) : null,
   };
 }
 
@@ -67,6 +71,7 @@ export class PrismaMovementRepository implements MovementRepository {
         registeredBy: movement.registeredBy,
         note: movement.note,
         purchaseItemId: movement.purchaseItemId,
+        unitPrice: movement.unitPrice?.toDecimalString() ?? null,
         createdAt: movement.createdAt,
       },
     });
@@ -101,6 +106,42 @@ export class PrismaMovementRepository implements MovementRepository {
       take: limit,
     });
     return rows.map(toView);
+  }
+
+  async findConsumptionByPerson(range: DateRange): Promise<PersonConsumption[]> {
+    const rows = await this.db.inventoryMovement.findMany({
+      where: { type: MovementType.OUT, source: MovementSource.MANUAL, createdAt: dateFilter(range) },
+      select: {
+        performedBy: true,
+        quantity: true,
+        unitPrice: true,
+        product: { select: { referencePrice: true } },
+      },
+    });
+    return valueConsumption(
+      rows.map((r) => ({
+        userId: r.performedBy,
+        quantity: r.quantity,
+        unitPrice: r.unitPrice ? toMoney(r.unitPrice) : null,
+        referencePrice: r.product.referencePrice ? toMoney(r.product.referencePrice) : null,
+      })),
+    );
+  }
+
+  async findActivityByPerson(range: DateRange): Promise<PersonActivity[]> {
+    const groups = await this.db.inventoryMovement.groupBy({
+      by: ['performedBy', 'type'],
+      where: { source: MovementSource.MANUAL, createdAt: dateFilter(range) },
+      _sum: { quantity: true },
+    });
+    const byUser = new Map<string, PersonActivity>();
+    for (const g of groups) {
+      const row = byUser.get(g.performedBy) ?? { userId: g.performedBy, withdrawn: 0, stored: 0 };
+      if (g.type === MovementType.OUT) row.withdrawn += g._sum.quantity ?? 0;
+      else row.stored += g._sum.quantity ?? 0;
+      byUser.set(g.performedBy, row);
+    }
+    return [...byUser.values()];
   }
 
   async findTopWithdrawers(range: DateRange, limit: number): Promise<TopWithdrawer[]> {

@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   CloseFundingPeriodUseCase,
+  ConsumptionChargeGenerator,
   GetCurrentFundingPeriodUseCase,
   GetFundingPeriodDetailUseCase,
   ListFundingPeriodsUseCase,
   OpenFundingPeriodUseCase,
   RegisterContributionUseCase,
 } from '../../../application';
-import { createOfficeContext } from '../../support/testContext';
+import { createOfficeContext, TZ } from '../../support/testContext';
 
 async function setup() {
   const ctx = await createOfficeContext();
@@ -15,7 +16,7 @@ async function setup() {
   return {
     ...ctx,
     open: new OpenFundingPeriodUseCase(repos.periods, ids, clock),
-    close: new CloseFundingPeriodUseCase(repos.periods, clock),
+    close: new CloseFundingPeriodUseCase(ctx.uow, new ConsumptionChargeGenerator(ids, TZ), clock),
     list: new ListFundingPeriodsUseCase(repos.periods),
     current: new GetCurrentFundingPeriodUseCase(repos.periods),
     detail: new GetFundingPeriodDetailUseCase(repos.periods, repos.contributions, repos.purchases),

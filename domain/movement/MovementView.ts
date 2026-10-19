@@ -1,3 +1,4 @@
+import type { Money } from '../shared/Money';
 import type { UserRef } from '../user/UserRef';
 import type { MovementSource } from './MovementSource';
 import type { MovementType } from './MovementType';
@@ -16,4 +17,6 @@ export interface MovementView {
   performedBy: UserRef;
   registeredBy: UserRef;
   purchaseId: string | null;
+  /** Salidas manuales: precio unitario guardado al sacar (null si no se conocía). */
+  unitPrice: Money | null;
 }

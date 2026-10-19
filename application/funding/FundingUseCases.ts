@@ -23,7 +23,8 @@ import {
   type PeriodSummaryDto,
   type PurchaseListItemDto,
 } from '../dto';
-import type { Clock, IdGenerator } from '../ports';
+import type { ConsumptionChargeGenerator } from '../charge/ChargeUseCases';
+import type { Clock, IdGenerator, UnitOfWork } from '../ports';
 import { requireAdmin } from '../shared/authorization';
 import { getActiveUserOrFail, getPeriodOrFail } from '../shared/loaders';
 import { MAX_PAGE_SIZE } from '../shared/pagination';
@@ -71,18 +72,27 @@ export class OpenFundingPeriodUseCase {
   }
 }
 
+/**
+ * Cierra la quincena y, en la misma transacción, genera los cobros por consumo: lo que cada persona debe
+ * aportar al siguiente mercado según lo que sacó (quien más consume, más aporta).
+ */
 export class CloseFundingPeriodUseCase {
   constructor(
-    private readonly periods: FundingPeriodRepository,
+    private readonly uow: UnitOfWork,
+    private readonly charges: ConsumptionChargeGenerator,
     private readonly clock: Clock,
   ) {}
 
   async execute(periodId: string, actor: Actor): Promise<FundingPeriodDto> {
     requireAdmin(actor);
-    const period = await getPeriodOrFail(this.periods, periodId);
-    period.close(this.clock.now());
-    await this.periods.save(period);
-    return toFundingPeriodDto(period);
+    const now = this.clock.now();
+    return this.uow.run(async (repos) => {
+      const period = await getPeriodOrFail(repos.periods, periodId);
+      period.close(now);
+      await repos.periods.save(period);
+      await this.charges.generate(repos, period, now);
+      return toFundingPeriodDto(period);
+    });
   }
 }
 

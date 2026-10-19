@@ -4,3 +4,5 @@ export * from './MovementDto';
 export * from './PurchaseDto';
 export * from './UserDto';
 export * from './KioskDto';
+export * from './RankingDto';
+export * from './ChargeDto';

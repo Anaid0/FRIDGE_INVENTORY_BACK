@@ -1,8 +1,8 @@
 import {
   InventoryMovement,
+  MovementSource,
   MovementType,
   NotFoundError,
-  type MovementSource,
   type Product,
   type Quantity,
 } from '../../domain';
@@ -33,7 +33,7 @@ export class StockMovementRecorder {
   constructor(private readonly ids: IdGenerator) {}
 
   async record(
-    repos: Pick<TransactionalRepositories, 'products' | 'movements'>,
+    repos: Pick<TransactionalRepositories, 'products' | 'movements' | 'purchases'>,
     input: RecordStockInput,
   ): Promise<RecordedStock> {
     const product = await repos.products.findByIdForUpdate(input.productId);
@@ -47,6 +47,15 @@ export class StockMovementRecorder {
         : product.removeStock(input.quantity, input.now);
     await repos.products.save(product);
 
+    // Lo que alguien saca queda valorado al precio de la última compra (o el de referencia del producto):
+    // así se calcula cuánto aporta cada uno al siguiente mercado, aunque después el precio cambie.
+    const source = input.source ?? MovementSource.MANUAL;
+    const unitPrice =
+      input.type === MovementType.OUT && source === MovementSource.MANUAL
+        ? ((await repos.purchases.findLatestUnitPrices([product.id], input.now)).get(product.id) ??
+          product.referencePrice)
+        : null;
+
     const movement = InventoryMovement.record({
       id: this.ids.generate(),
       productId: product.id,
@@ -58,6 +67,7 @@ export class StockMovementRecorder {
       registeredBy: input.registeredBy,
       note: input.note,
       purchaseItemId: input.purchaseItemId,
+      unitPrice,
       now: input.now,
     });
     await repos.movements.append(movement);

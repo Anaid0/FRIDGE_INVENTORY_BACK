@@ -1,5 +1,6 @@
 import type { TransactionalRepositories, UnitOfWork } from '../../../application';
 import { Prisma, type PrismaClient } from './generated/client';
+import { PrismaConsumptionChargeRepository } from './repositories/PrismaConsumptionChargeRepository';
 import { PrismaContributionRepository } from './repositories/PrismaContributionRepository';
 import { PrismaFundingPeriodRepository } from './repositories/PrismaFundingPeriodRepository';
 import { PrismaMovementRepository } from './repositories/PrismaMovementRepository';
@@ -38,5 +39,6 @@ export function repositoriesFor(db: PrismaClient | Prisma.TransactionClient): Tr
     periods: new PrismaFundingPeriodRepository(db),
     contributions: new PrismaContributionRepository(db),
     purchases: new PrismaPurchaseRepository(db),
+    charges: new PrismaConsumptionChargeRepository(db),
   };
 }

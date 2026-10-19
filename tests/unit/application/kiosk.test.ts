@@ -12,7 +12,7 @@ import {
   type TokenPayload,
 } from '../../../application';
 import { InvalidPinError, PIN_MAX_ATTEMPTS, PinLockedError, Role, User } from '../../../domain';
-import { createOfficeContext } from '../../support/testContext';
+import { createOfficeContext, TZ } from '../../support/testContext';
 
 async function setup() {
   const ctx = await createOfficeContext();
@@ -37,9 +37,9 @@ async function setup() {
     listDevices: new ListKioskDevicesUseCase(repos.kioskDevices, repos.users),
     revoke: new RevokeKioskDeviceUseCase(repos.kioskDevices, repos.users, clock),
     authenticate: new AuthenticateKioskDeviceUseCase(repos.kioskDevices, clock),
-    people: new ListKioskPeopleUseCase(repos.users),
+    people: new ListKioskPeopleUseCase(repos.users, clock),
     register: new KioskRegisterMovementsUseCase(uow, repos.users, verifier, recorder, clock),
-    ranking: new GetTopWithdrawersUseCase(repos.movements, clock),
+    ranking: new GetTopWithdrawersUseCase(repos.movements, repos.periods, clock, TZ),
   };
 }
 
@@ -121,9 +121,21 @@ describe('Personas en la tablet', () => {
 
     const result = await people.execute();
     expect(result).toEqual([
-      { id: 'user-ana', name: 'Ana', lastname: 'Test', initials: 'AT' },
-      { id: 'user-luis', name: 'Luis', lastname: 'Test', initials: 'LT' },
+      { id: 'user-ana', name: 'Ana', lastname: 'Test', initials: 'AT', pinLockedUntil: null },
+      { id: 'user-luis', name: 'Luis', lastname: 'Test', initials: 'LT', pinLockedUntil: null },
     ]);
+  });
+
+  it('indica quién está bloqueado por PIN y hasta cuándo', async () => {
+    const { people, repos, ana, clock } = await setup();
+    const user = (await repos.users.findById(ana.id))!;
+    for (let i = 0; i < 5; i++) user.registerFailedPin(clock.now());
+    await repos.users.save(user);
+
+    const result = await people.execute();
+    expect(result.find((p) => p.id === ana.id)?.pinLockedUntil).toEqual(user.pinLockedUntil);
+    clock.advanceDays(1);
+    expect((await people.execute()).find((p) => p.id === ana.id)?.pinLockedUntil).toBeNull();
   });
 });
 

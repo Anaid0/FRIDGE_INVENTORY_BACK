@@ -5,7 +5,7 @@ import {
   RegisterStockInUseCase,
   RegisterStockOutUseCase,
 } from '../../../application';
-import { createOfficeContext } from '../../support/testContext';
+import { createOfficeContext, TZ } from '../../support/testContext';
 
 async function setup() {
   const ctx = await createOfficeContext();
@@ -16,7 +16,7 @@ async function setup() {
     stockIn: new RegisterStockInUseCase(ctx.uow, ctx.recorder, ctx.clock),
     stockOut: new RegisterStockOutUseCase(ctx.uow, ctx.recorder, ctx.clock),
     list: new ListMovementsUseCase(ctx.repos.movements),
-    ranking: new GetTopWithdrawersUseCase(ctx.repos.movements, ctx.clock),
+    ranking: new GetTopWithdrawersUseCase(ctx.repos.movements, ctx.repos.periods, ctx.clock, TZ),
   };
 }
 

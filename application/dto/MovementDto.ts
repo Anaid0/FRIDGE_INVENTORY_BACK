@@ -12,6 +12,8 @@ export interface MovementDto {
   registeredBy: string;
   note: string | null;
   purchaseItemId: string | null;
+  /** Salidas manuales: precio unitario guardado al sacar (decimal), o null. */
+  unitPrice: string | null;
   createdAt: Date;
 }
 
@@ -28,6 +30,7 @@ export function toMovementDto(movement: InventoryMovement): MovementDto {
     registeredBy: movement.registeredBy,
     note: movement.note,
     purchaseItemId: movement.purchaseItemId,
+    unitPrice: movement.unitPrice?.toDecimalString() ?? null,
     createdAt: movement.createdAt,
   };
 }

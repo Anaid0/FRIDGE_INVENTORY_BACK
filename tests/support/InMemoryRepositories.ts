@@ -1,11 +1,15 @@
+import type { ConsumptionCharge } from '../../domain';
 import {
   buildPeriodSummary,
   Money,
+  valueConsumption,
   MovementSource,
   MovementType,
   type Category,
   type CategoryRepository,
   type CategorySpending,
+  type ConsumptionChargeRepository,
+  type ConsumptionChargeView,
   type Contribution,
   type ContributionRepository,
   type ContributionView,
@@ -20,7 +24,11 @@ import {
   type MovementView,
   type Page,
   type PageRequest,
+  type PeriodRanking,
+  type PeriodRankingRepository,
   type PeriodSummary,
+  type PersonActivity,
+  type PersonConsumption,
   type PricePoint,
   type Product,
   type ProductFilter,
@@ -155,6 +163,31 @@ export class InMemoryMovementRepository implements MovementRepository {
       .map((m) => this.toView(m));
   }
 
+  async findConsumptionByPerson(range: DateRange): Promise<PersonConsumption[]> {
+    return valueConsumption(
+      this.db.movements
+        .filter((m) => m.isWithdrawal() && inRange(m.createdAt, range))
+        .map((m) => ({
+          userId: m.performedBy,
+          quantity: m.quantity,
+          unitPrice: m.unitPrice,
+          referencePrice: this.db.products.get(m.productId)?.referencePrice ?? null,
+        })),
+    );
+  }
+
+  async findActivityByPerson(range: DateRange): Promise<PersonActivity[]> {
+    const byUser = new Map<string, PersonActivity>();
+    for (const m of this.db.movements) {
+      if (m.source !== MovementSource.MANUAL || !inRange(m.createdAt, range)) continue;
+      const row = byUser.get(m.performedBy) ?? { userId: m.performedBy, withdrawn: 0, stored: 0 };
+      if (m.type === MovementType.OUT) row.withdrawn += m.quantity;
+      else row.stored += m.quantity;
+      byUser.set(m.performedBy, row);
+    }
+    return [...byUser.values()];
+  }
+
   async findTopWithdrawers(range: DateRange, limit: number): Promise<TopWithdrawer[]> {
     const totals = new Map<string, TopWithdrawer>();
     for (const m of this.db.movements) {
@@ -199,6 +232,7 @@ export class InMemoryMovementRepository implements MovementRepository {
       performedBy: userRef(this.db, m.performedBy),
       registeredBy: userRef(this.db, m.registeredBy),
       purchaseId: purchase?.id ?? null,
+      unitPrice: m.unitPrice,
     };
   }
 }
@@ -262,6 +296,13 @@ export class InMemoryContributionRepository implements ContributionRepository {
         amount: c.amount,
         paidAt: c.paidAt,
         note: c.note,
+        charge: c.chargeId
+          ? {
+              id: c.chargeId,
+              periodId: this.db.charges.get(c.chargeId)!.periodId,
+              periodName: this.db.periods.get(this.db.charges.get(c.chargeId)!.periodId)!.name,
+            }
+          : null,
         registeredBy: userRef(this.db, c.registeredBy),
         createdAt: c.createdAt,
       }));
@@ -270,6 +311,21 @@ export class InMemoryContributionRepository implements ContributionRepository {
 
 export class InMemoryPurchaseRepository implements PurchaseRepository {
   constructor(private readonly db: InMemoryDatabase) {}
+
+  async findLatestUnitPrices(productIds: string[], at: Date): Promise<Map<string, Money>> {
+    const prices = new Map<string, Money>();
+    const latest = [...this.db.purchases.values()]
+      .filter((p) => !p.isVoided() && p.purchasedAt.getTime() <= at.getTime())
+      .sort((a, b) => b.purchasedAt.getTime() - a.purchasedAt.getTime());
+    for (const purchase of latest) {
+      for (const item of purchase.items) {
+        if (productIds.includes(item.productId) && !prices.has(item.productId)) {
+          prices.set(item.productId, item.unitPrice);
+        }
+      }
+    }
+    return prices;
+  }
 
   async findById(id: string) {
     const purchase = this.db.purchases.get(id);
@@ -292,6 +348,10 @@ export class InMemoryPurchaseRepository implements PurchaseRepository {
         purchasedAt: p.purchasedAt,
         total: p.total,
         itemsCount: p.items.length,
+        lines: p.items.map((i) => ({
+          productName: this.db.products.get(i.productId)?.name ?? '',
+          quantity: i.quantity,
+        })),
         hasReceipt: p.receiptPath !== null,
         voidedAt: p.voidedAt,
         createdAt: p.createdAt,
@@ -393,5 +453,71 @@ export class InMemoryKioskDeviceRepository implements KioskDeviceRepository {
   }
   async save(device: KioskDevice) {
     this.db.kioskDevices.set(device.id, clone.kioskDevice(device));
+  }
+}
+
+export class InMemoryPeriodRankingRepository implements PeriodRankingRepository {
+  constructor(private readonly db: InMemoryDatabase) {}
+
+  async findByPeriod(periodId: string) {
+    return this.db.rankings.get(periodId) ?? null;
+  }
+  async findLatest() {
+    const endOf = (r: PeriodRanking) => this.db.periods.get(r.periodId)?.endDate.getTime() ?? 0;
+    return [...this.db.rankings.values()].sort((a, b) => endOf(b) - endOf(a))[0] ?? null;
+  }
+  async findComputedPeriodIds() {
+    return [...this.db.rankings.keys()];
+  }
+  async save(ranking: PeriodRanking) {
+    this.db.rankings.set(ranking.periodId, ranking);
+  }
+}
+
+export class InMemoryConsumptionChargeRepository implements ConsumptionChargeRepository {
+  constructor(private readonly db: InMemoryDatabase) {}
+
+  async findById(id: string) {
+    const charge = this.db.charges.get(id);
+    return charge ? clone.charge(charge) : null;
+  }
+  async findByPeriod(periodId: string) {
+    return [...this.db.charges.values()].filter((c) => c.periodId === periodId).map(clone.charge);
+  }
+  async findViewsByPeriod(periodId: string) {
+    return [...this.db.charges.values()]
+      .filter((c) => c.periodId === periodId)
+      .map((c) => this.toView(c))
+      .sort((a, b) => b.amount.cents - a.amount.cents || b.units - a.units);
+  }
+  async findPendingViews() {
+    const endOf = (v: ConsumptionChargeView) => this.db.periods.get(v.period.id)!.endDate.getTime();
+    return [...this.db.charges.values()]
+      .map((c) => this.toView(c))
+      .filter((v) => v.paid.cents < v.amount.cents)
+      .sort((a, b) => endOf(a) - endOf(b) || b.amount.cents - a.amount.cents);
+  }
+  async paidAmount(chargeId: string) {
+    return Money.sum(this.db.contributions.filter((c) => c.chargeId === chargeId).map((c) => c.amount));
+  }
+  async save(charge: ConsumptionCharge) {
+    this.db.charges.set(charge.id, clone.charge(charge));
+  }
+  async delete(chargeId: string) {
+    this.db.charges.delete(chargeId);
+  }
+
+  private toView(charge: ConsumptionCharge): ConsumptionChargeView {
+    const period = this.db.periods.get(charge.periodId)!;
+    return {
+      id: charge.id,
+      period: { id: period.id, name: period.name },
+      user: userRef(this.db, charge.userId),
+      amount: charge.amount,
+      units: charge.units,
+      unpricedUnits: charge.unpricedUnits,
+      computedAt: charge.computedAt,
+      paid: Money.sum(this.db.contributions.filter((c) => c.chargeId === charge.id).map((c) => c.amount)),
+    };
   }
 }

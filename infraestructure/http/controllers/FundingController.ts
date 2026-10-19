@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import type { UseCases } from '../../config/container';
-import { actorOf, param } from '../requestContext';
+import { actorOf, kioskDeviceOf, param } from '../requestContext';
 import { contributionSchema, openPeriodSchema } from '../schemas';
 
 export class FundingController {
@@ -13,6 +13,10 @@ export class FundingController {
       | 'getCurrentFundingPeriod'
       | 'getFundingPeriodDetail'
       | 'registerContribution'
+      | 'getPeriodRanking'
+      | 'computePeriodRanking'
+      | 'getLatestPeriodRanking'
+      | 'listRankingPeriods'
     >,
   ) {}
 
@@ -36,6 +40,25 @@ export class FundingController {
 
   close = async (req: Request, res: Response) => {
     res.json(await this.useCases.closeFundingPeriod.execute(param(req, 'id'), actorOf(req)));
+  };
+
+  ranking = async (req: Request, res: Response) => {
+    res.json(await this.useCases.getPeriodRanking.execute(param(req, 'id')));
+  };
+
+  /** Desde la administración (admin) o desde la tablet (solo la primera vez). */
+  computeRanking = async (req: Request, res: Response) => {
+    const caller = req.actor ? { actor: actorOf(req) } : { kioskDeviceId: kioskDeviceOf(req).id };
+    res.json(await this.useCases.computePeriodRanking.execute(param(req, 'id'), caller));
+  };
+
+  rankingPeriods = async (_req: Request, res: Response) => {
+    res.json(await this.useCases.listRankingPeriods.execute());
+  };
+
+  /** `{ ranking: null }` si todavía no se ha calculado ninguna quincena. */
+  latestRanking = async (_req: Request, res: Response) => {
+    res.json({ ranking: await this.useCases.getLatestPeriodRanking.execute() });
   };
 
   contribute = async (req: Request, res: Response) => {

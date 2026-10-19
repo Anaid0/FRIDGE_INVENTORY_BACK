@@ -75,6 +75,7 @@ export const createProductSchema = z.object({
   unit: z.string().max(20).optional(),
   minStock: z.number().int().min(0).optional(),
   categoryId: id.nullish(),
+  referencePrice: money.nullish(),
   initialQuantity: z.number().int().min(0).optional(),
 });
 
@@ -85,6 +86,7 @@ export const updateProductSchema = z
     unit: z.string().max(20).optional(),
     minStock: z.number().int().min(0).optional(),
     categoryId: id.nullish(),
+    referencePrice: money.nullish(),
     isActive: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, 'Envía al menos un campo para actualizar');
@@ -114,7 +116,9 @@ export const listMovementsQuery = z.object({
 });
 
 export const topWithdrawersQuery = z.object({
-  period: z.enum(['all', 'month', 'week']).optional(),
+  /** 'period' = la quincena abierta. */
+  period: z.enum(['all', 'month', 'week', 'period']).optional(),
+  periodId: id.optional(),
   limit: z.coerce.number().int().positive().max(50).optional(),
 });
 
@@ -123,6 +127,13 @@ export const openPeriodSchema = z.object({
   startDate: dateOnly,
   endDate: dateOnly,
   notes: optionalText(255),
+});
+
+/** Pago de un cobro por consumo; sin `amount` se paga todo lo pendiente. */
+export const chargePaymentSchema = z.object({
+  amount: money.optional(),
+  paidAt: dateTime.optional(),
+  note: optionalText(255),
 });
 
 export const contributionSchema = z.object({
@@ -143,7 +154,17 @@ const itemsField = z.preprocess(
     }
   },
   z
-    .array(z.object({ productId: id, quantity: z.coerce.number(), unitPrice: money }))
+    .array(
+      z.object({
+        productId: id,
+        quantity: z.coerce.number().optional(),
+        unitPrice: money.optional(),
+        total: money.optional(),
+        packageCount: z.coerce.number().optional(),
+        unitsPerPackage: z.coerce.number().optional(),
+        packagePrice: money.optional(),
+      }),
+    )
     .min(1, 'La compra debe tener al menos un producto')
     .max(100),
 );

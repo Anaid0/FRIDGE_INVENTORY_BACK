@@ -68,6 +68,8 @@ export interface ContributionDto {
   paidAt: Date;
   registeredBy: string;
   note: string | null;
+  /** Si es el pago de un cobro por consumo. */
+  chargeId: string | null;
   createdAt: Date;
 }
 
@@ -80,6 +82,7 @@ export function toContributionDto(contribution: Contribution): ContributionDto {
     paidAt: contribution.paidAt,
     registeredBy: contribution.registeredBy,
     note: contribution.note,
+    chargeId: contribution.chargeId,
     createdAt: contribution.createdAt,
   };
 }
@@ -91,6 +94,8 @@ export interface ContributionViewDto {
   amount: string;
   paidAt: Date;
   note: string | null;
+  /** Pago de un cobro por consumo: de qué quincena era el cobro. */
+  charge: { id: string; periodId: string; periodName: string } | null;
   registeredBy: UserRef;
   createdAt: Date;
 }

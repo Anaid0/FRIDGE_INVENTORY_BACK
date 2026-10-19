@@ -11,6 +11,8 @@ export interface ContributionProps {
   paidAt: Date;
   registeredBy: string;
   note: string | null;
+  /** Si es el pago de un cobro por consumo (ver ConsumptionCharge). */
+  chargeId?: string | null;
   createdAt: Date;
 }
 
@@ -22,6 +24,7 @@ export interface RegisterContributionInput {
   paidAt: Date;
   registeredBy: string;
   note?: string | null;
+  chargeId?: string | null;
   now: Date;
 }
 
@@ -46,6 +49,7 @@ export class Contribution {
       paidAt: Guard.validDate(input.paidAt, 'paidAt'),
       registeredBy: input.registeredBy,
       note: Guard.optionalText(input.note, 'note', NOTE_MAX),
+      chargeId: input.chargeId ?? null,
       createdAt: input.now,
     });
   }
@@ -74,6 +78,9 @@ export class Contribution {
   }
   get note(): string | null {
     return this.props.note;
+  }
+  get chargeId(): string | null {
+    return this.props.chargeId ?? null;
   }
   get createdAt(): Date {
     return this.props.createdAt;

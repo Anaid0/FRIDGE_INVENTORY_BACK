@@ -11,10 +11,12 @@ import {
 import { InMemoryDatabase } from './InMemoryDatabase';
 import {
   InMemoryCategoryRepository,
+  InMemoryConsumptionChargeRepository,
   InMemoryContributionRepository,
   InMemoryFundingPeriodRepository,
   InMemoryKioskDeviceRepository,
   InMemoryMovementRepository,
+  InMemoryPeriodRankingRepository,
   InMemoryProductRepository,
   InMemoryPurchaseRepository,
   InMemorySpendingReportReader,
@@ -22,6 +24,8 @@ import {
 } from './InMemoryRepositories';
 
 export const START = new Date('2026-10-16T12:00:00.000Z');
+/** Zona horaria de la oficina en los tests (UTC−5, sin horario de verano). */
+export const TZ = 'America/Bogota';
 
 export function actorOf(user: User): Actor {
   return { id: user.id, role: user.role };
@@ -40,6 +44,8 @@ export function createTestContext() {
     purchases: new InMemoryPurchaseRepository(db),
     reports: new InMemorySpendingReportReader(db),
     kioskDevices: new InMemoryKioskDeviceRepository(db),
+    rankings: new InMemoryPeriodRankingRepository(db),
+    charges: new InMemoryConsumptionChargeRepository(db),
   };
   const clock = new FixedClock(START);
   const ids = new SequentialIdGenerator();

@@ -1,10 +1,11 @@
-import type {
-  Page,
-  PageRequest,
-  Purchase,
-  PurchaseFilter,
-  PurchaseListItem,
-  PurchaseRepository,
+import {
+  type Money,
+  type Page,
+  type PageRequest,
+  type Purchase,
+  type PurchaseFilter,
+  type PurchaseListItem,
+  type PurchaseRepository,
 } from '../../../../domain';
 import type { Prisma } from '../generated/client';
 import { toMoney, toPurchase, toUserRef, userRefSelect } from '../mappers';
@@ -12,6 +13,23 @@ import type { DbClient } from '../types';
 
 export class PrismaPurchaseRepository implements PurchaseRepository {
   constructor(private readonly db: DbClient) {}
+
+  async findLatestUnitPrices(productIds: string[], at: Date): Promise<Map<string, Money>> {
+    if (productIds.length === 0) return new Map();
+    const items = await this.db.purchaseItem.findMany({
+      where: {
+        productId: { in: productIds },
+        purchase: { voidedAt: null, purchasedAt: { lte: at } },
+      },
+      select: { productId: true, unitPrice: true },
+      orderBy: [{ purchase: { purchasedAt: 'desc' } }, { purchase: { createdAt: 'desc' } }],
+    });
+    const prices = new Map<string, Money>();
+    for (const item of items) {
+      if (!prices.has(item.productId)) prices.set(item.productId, toMoney(item.unitPrice));
+    }
+    return prices;
+  }
 
   async findById(id: string) {
     const row = await this.db.purchase.findUnique({ where: { id }, include: { items: true } });
@@ -33,7 +51,7 @@ export class PrismaPurchaseRepository implements PurchaseRepository {
         include: {
           buyer: userRefSelect,
           period: { select: { name: true } },
-          _count: { select: { items: true } },
+          items: { select: { quantity: true, product: { select: { name: true } } }, orderBy: { id: 'asc' } },
         },
         orderBy: [{ purchasedAt: 'desc' }, { createdAt: 'desc' }],
         skip: (page.page - 1) * page.pageSize,
@@ -49,7 +67,8 @@ export class PrismaPurchaseRepository implements PurchaseRepository {
         store: row.store,
         purchasedAt: row.purchasedAt,
         total: toMoney(row.total),
-        itemsCount: row._count.items,
+        itemsCount: row.items.length,
+        lines: row.items.map((i) => ({ productName: i.product.name, quantity: i.quantity })),
         hasReceipt: row.receiptPath !== null,
         voidedAt: row.voidedAt,
         createdAt: row.createdAt,
@@ -93,6 +112,8 @@ export class PrismaPurchaseRepository implements PurchaseRepository {
             quantity: item.quantity,
             unitPrice: item.unitPrice.toDecimalString(),
             subtotal: item.subtotal.toDecimalString(),
+            packageCount: item.packageCount,
+            unitsPerPackage: item.unitsPerPackage,
           })),
         },
       },

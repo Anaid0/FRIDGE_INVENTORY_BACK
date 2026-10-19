@@ -133,11 +133,15 @@ export class AuthenticateKioskDeviceUseCase {
 
 /** Personas que aparecen en la tablet: activas y con PIN asignado. */
 export class ListKioskPeopleUseCase {
-  constructor(private readonly users: UserRepository) {}
+  constructor(
+    private readonly users: UserRepository,
+    private readonly clock: Clock,
+  ) {}
 
   async execute(): Promise<KioskPersonDto[]> {
     const people = await this.users.findAll({ role: Role.EMPLOYEE, isActive: true });
-    return people.filter((p) => p.hasPin()).map(toKioskPersonDto);
+    const now = this.clock.now();
+    return people.filter((p) => p.hasPin()).map((p) => toKioskPersonDto(p, now));
   }
 }
 

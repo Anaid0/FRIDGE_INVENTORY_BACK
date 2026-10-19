@@ -25,6 +25,18 @@ const envSchema = z.object({
   ADMIN_PASSWORD: z.string().min(8, 'ADMIN_PASSWORD debe tener al menos 8 caracteres'),
 
   CURRENCY: z.string().length(3).default('COP'),
+  /** Zona horaria de la oficina: define cuándo empieza y termina cada día de una quincena. */
+  APP_TIMEZONE: z
+    .string()
+    .default('America/Bogota')
+    .refine((tz) => {
+      try {
+        new Intl.DateTimeFormat('en-US', { timeZone: tz });
+        return true;
+      } catch {
+        return false;
+      }
+    }, 'APP_TIMEZONE debe ser una zona horaria IANA, por ejemplo America/Bogota'),
   UPLOADS_DIR: z.string().min(1).default('./uploads'),
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
