@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+uploads/
+.env
+.env.test
+*.log
+.DS_Store
+infraestructure/persistence/prisma/generated/
+uploads-e2e/

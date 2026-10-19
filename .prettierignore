@@ -1,0 +1,7 @@
+dist
+coverage
+node_modules
+uploads
+package-lock.json
+infraestructure/persistence/prisma/generated
+uploads-e2e

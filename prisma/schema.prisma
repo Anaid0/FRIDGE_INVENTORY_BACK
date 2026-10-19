@@ -1,0 +1,224 @@
+// FridgeYA — modelo de datos (MySQL 8).
+// Convención: modelos en PascalCase/camelCase en Prisma, tablas y columnas en snake_case en MySQL.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../infraestructure/persistence/prisma/generated"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum MovementType {
+  IN
+  OUT
+}
+
+/// MANUAL = consumo/reposición manual; PURCHASE = entrada por compra; PURCHASE_VOID = reversión al anular compra.
+enum MovementSource {
+  MANUAL
+  PURCHASE
+  PURCHASE_VOID
+}
+
+enum PeriodStatus {
+  OPEN
+  CLOSED
+}
+
+/// ADMIN: cuenta con email + contraseña. EMPLOYEE ("persona"): solo nombre + PIN de 4 dígitos para la tablet.
+model User {
+  id                String    @id @default(uuid()) @db.Char(36)
+  name              String    @db.VarChar(100)
+  lastname          String    @db.VarChar(100)
+  email             String?   @unique @db.VarChar(150)
+  passwordHash      String?   @map("password_hash") @db.VarChar(255)
+  pinHash           String?   @map("pin_hash") @db.VarChar(255)
+  failedPinAttempts Int       @default(0) @map("failed_pin_attempts") @db.UnsignedInt
+  pinLockedUntil    DateTime? @map("pin_locked_until") @db.DateTime(3)
+  role              Role      @default(EMPLOYEE)
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+
+  movementsPerformed      InventoryMovement[] @relation("MovementPerformedBy")
+  movementsRegistered     InventoryMovement[] @relation("MovementRegisteredBy")
+  periodsCreated          FundingPeriod[]     @relation("PeriodCreatedBy")
+  contributions           Contribution[]      @relation("ContributionUser")
+  contributionsRegistered Contribution[]      @relation("ContributionRegisteredBy")
+  purchasesMade           Purchase[]          @relation("PurchaseBuyer")
+  purchasesRegistered     Purchase[]          @relation("PurchaseRegisteredBy")
+  purchasesVoided         Purchase[]          @relation("PurchaseVoidedBy")
+  kioskDevicesCreated     KioskDevice[]       @relation("KioskDeviceCreatedBy")
+  kioskDevicesRevoked     KioskDevice[]       @relation("KioskDeviceRevokedBy")
+
+  @@index([role, isActive])
+  @@map("users")
+}
+
+model Category {
+  id        String   @id @default(uuid()) @db.Char(36)
+  name      String   @unique @db.VarChar(80)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String   @id @default(uuid()) @db.Char(36)
+  name        String   @unique @db.VarChar(120)
+  description String?  @db.VarChar(255)
+  unit        String   @default("unidad") @db.VarChar(20)
+  quantity    Int      @default(0) @db.UnsignedInt // stock actual
+  minStock    Int      @default(0) @map("min_stock") @db.UnsignedInt
+  categoryId  String?  @map("category_id") @db.Char(36)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  category      Category?           @relation(fields: [categoryId], references: [id])
+  movements     InventoryMovement[]
+  purchaseItems PurchaseItem[]
+
+  @@index([categoryId])
+  @@map("products")
+}
+
+/// Log inmutable de entradas/salidas. Nunca se edita ni se borra.
+model InventoryMovement {
+  id             String         @id @default(uuid()) @db.Char(36)
+  productId      String         @map("product_id") @db.Char(36)
+  performedBy    String         @map("performed_by") @db.Char(36) // quien sacó/metió el producto
+  registeredBy   String         @map("registered_by") @db.Char(36) // quien lo registró en el sistema
+  type           MovementType
+  source         MovementSource @default(MANUAL)
+  quantity       Int            @db.UnsignedInt
+  stockBefore    Int            @map("stock_before") @db.UnsignedInt
+  stockAfter     Int            @map("stock_after") @db.UnsignedInt
+  note           String?        @db.VarChar(255)
+  purchaseItemId String?        @unique @map("purchase_item_id") @db.Char(36)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+
+  product      Product       @relation(fields: [productId], references: [id])
+  performer    User          @relation("MovementPerformedBy", fields: [performedBy], references: [id])
+  registrar    User          @relation("MovementRegisteredBy", fields: [registeredBy], references: [id])
+  purchaseItem PurchaseItem? @relation(fields: [purchaseItemId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt], map: "idx_mov_created")
+  @@index([performedBy, type], map: "idx_mov_performer_type")
+  @@index([type, source, performedBy], map: "idx_mov_ranking")
+  @@index([registeredBy], map: "idx_mov_registrar")
+  @@index([productId, createdAt], map: "idx_mov_product")
+  @@map("inventory_movements")
+}
+
+/// Quincena: período en el que el equipo reúne dinero y compra productos.
+model FundingPeriod {
+  id        String       @id @default(uuid()) @db.Char(36)
+  name      String       @db.VarChar(60)
+  startDate DateTime     @map("start_date") @db.Date
+  endDate   DateTime     @map("end_date") @db.Date
+  status    PeriodStatus @default(OPEN)
+  notes     String?      @db.VarChar(255)
+  createdBy String       @map("created_by") @db.Char(36)
+  closedAt  DateTime?    @map("closed_at") @db.DateTime(3)
+  createdAt DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
+
+  creator       User           @relation("PeriodCreatedBy", fields: [createdBy], references: [id])
+  contributions Contribution[]
+  purchases     Purchase[]
+
+  @@unique([startDate, endDate], map: "uq_period_dates")
+  @@index([status])
+  @@map("funding_periods")
+}
+
+model Contribution {
+  id           String   @id @default(uuid()) @db.Char(36)
+  periodId     String   @map("period_id") @db.Char(36)
+  userId       String   @map("user_id") @db.Char(36) // quién aportó
+  amount       Decimal  @db.Decimal(12, 2)
+  paidAt       DateTime @map("paid_at") @db.DateTime(3)
+  registeredBy String   @map("registered_by") @db.Char(36)
+  note         String?  @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  period    FundingPeriod @relation(fields: [periodId], references: [id])
+  user      User          @relation("ContributionUser", fields: [userId], references: [id])
+  registrar User          @relation("ContributionRegisteredBy", fields: [registeredBy], references: [id])
+
+  @@index([periodId], map: "idx_contrib_period")
+  @@index([userId], map: "idx_contrib_user")
+  @@map("contributions")
+}
+
+model Purchase {
+  id           String    @id @default(uuid()) @db.Char(36)
+  periodId     String    @map("period_id") @db.Char(36)
+  buyerId      String    @map("buyer_id") @db.Char(36) // quién fue a comprar
+  store        String?   @db.VarChar(120)
+  purchasedAt  DateTime  @map("purchased_at") @db.DateTime(3)
+  total        Decimal   @db.Decimal(12, 2) // = suma de subtotales de sus líneas
+  receiptPath  String?   @map("receipt_path") @db.VarChar(255)
+  note         String?   @db.VarChar(255)
+  registeredBy String    @map("registered_by") @db.Char(36)
+  voidedAt     DateTime? @map("voided_at") @db.DateTime(3) // anulada: no cuenta en totales ni reportes
+  voidedBy     String?   @map("voided_by") @db.Char(36)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+
+  period    FundingPeriod  @relation(fields: [periodId], references: [id])
+  buyer     User           @relation("PurchaseBuyer", fields: [buyerId], references: [id])
+  registrar User           @relation("PurchaseRegisteredBy", fields: [registeredBy], references: [id])
+  voider    User?          @relation("PurchaseVoidedBy", fields: [voidedBy], references: [id])
+  items     PurchaseItem[]
+
+  @@index([periodId], map: "idx_purchase_period")
+  @@index([purchasedAt], map: "idx_purchase_date")
+  @@index([buyerId])
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id         String  @id @default(uuid()) @db.Char(36)
+  purchaseId String  @map("purchase_id") @db.Char(36)
+  productId  String  @map("product_id") @db.Char(36)
+  quantity   Int     @db.UnsignedInt
+  unitPrice  Decimal @map("unit_price") @db.Decimal(12, 2)
+  subtotal   Decimal @db.Decimal(12, 2) // = quantity * unit_price
+
+  purchase Purchase           @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product  Product            @relation(fields: [productId], references: [id])
+  movement InventoryMovement?
+
+  @@unique([purchaseId, productId], map: "uq_item_purchase_product")
+  @@index([productId], map: "idx_item_product")
+  @@map("purchase_items")
+}
+
+/// Tablet autorizada por un admin para registrar movimientos con PIN. Se revoca, no se borra.
+model KioskDevice {
+  id         String    @id @default(uuid()) @db.Char(36)
+  name       String    @db.VarChar(60)
+  createdBy  String    @map("created_by") @db.Char(36)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  lastSeenAt DateTime? @map("last_seen_at") @db.DateTime(3)
+  revokedAt  DateTime? @map("revoked_at") @db.DateTime(3)
+  revokedBy  String?   @map("revoked_by") @db.Char(36)
+
+  creator User  @relation("KioskDeviceCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+  revoker User? @relation("KioskDeviceRevokedBy", fields: [revokedBy], references: [id], onDelete: Restrict)
+
+  @@index([createdBy])
+  @@index([revokedBy])
+  @@map("kiosk_devices")
+}
