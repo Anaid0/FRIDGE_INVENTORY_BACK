@@ -33,7 +33,8 @@
     "db:test:prepare": "tsx scripts/prepare-test-db.ts",
     "db:seed:demo": "tsx prisma/seed-demo.ts",
     "e2e:reset-db": "tsx scripts/reset-e2e-db.ts",
-    "e2e:server": "tsx scripts/start-e2e-server.ts"
+    "e2e:server": "tsx scripts/start-e2e-server.ts",
+    "db:sync-prod": "bash scripts/sync-to-aiven.sh"
   },
   "dependencies": {
     "@prisma/adapter-mariadb": "7.10.1",

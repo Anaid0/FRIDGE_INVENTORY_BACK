@@ -151,7 +151,7 @@ describe('Personas con PIN (e2e)', () => {
     const reset = await api()
       .post(`/api/people/${personId}/pin`)
       .set(bearer(adminToken))
-      .send({ pin: '7351' })
+      .send({ pin: '7351', adminPassword: ADMIN.password })
       .expect(200);
     expect(reset.body.hasPin).toBe(true);
     expect(Object.keys(edited.body)).not.toContain('email');
@@ -163,7 +163,7 @@ describe('Personas con PIN (e2e)', () => {
     const res = await api()
       .post(`/api/people/${admin.body.id}/pin`)
       .set(bearer(adminToken))
-      .send({ pin: '7351' })
+      .send({ pin: '7351', adminPassword: ADMIN.password })
       .expect(400);
     expect(res.body.error.code).toBe('NOT_A_PERSON');
   });

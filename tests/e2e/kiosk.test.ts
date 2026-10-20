@@ -140,7 +140,11 @@ describe('Tablet: registrar con PIN (e2e)', () => {
 
     const people = await api().get('/api/people').set(bearer(adminToken)).expect(200);
     expect(people.body.find((p: { id: string }) => p.id === luis.id)).toMatchObject({ isPinLocked: true });
-    await api().post(`/api/people/${luis.id}/pin`).set(bearer(adminToken)).send({ pin: '7351' }).expect(200);
+    await api()
+      .post(`/api/people/${luis.id}/pin`)
+      .set(bearer(adminToken))
+      .send({ pin: '7351', adminPassword: ADMIN.password })
+      .expect(200);
     await kioskOut(luis.id, '7351', [{ productId: gaseosaId, quantity: 1 }]).expect(201);
   });
 
@@ -152,6 +156,34 @@ describe('Tablet: registrar con PIN (e2e)', () => {
       .expect(204);
     await kioskOut(ana.id, '2580', [{ productId: gaseosaId, quantity: 1 }]).expect(401);
     await kioskOut(ana.id, '4826', [{ productId: gaseosaId, quantity: 1 }]).expect(201);
+  });
+
+  it('sin elegir persona: el PIN la identifica; los PIN de nadie cuentan para la tablet', async () => {
+    const out = (pin: string) =>
+      api()
+        .post('/api/kiosk/movements')
+        .set(bearer(kioskToken))
+        .send({ pin, type: 'OUT', items: [{ productId: gaseosaId, quantity: 1 }] });
+    const ok = await out('7351').expect(201); // PIN de Luis
+    expect(ok.body.person).toMatchObject({ id: luis.id, name: 'Luis' });
+
+    const wrong = await out('9999').expect(401);
+    expect(wrong.body.error).toMatchObject({ code: 'INVALID_PIN', details: { remainingAttempts: 4 } });
+
+    // Cambiar el PIN solo con el actual; no puede quedar igual al de otra persona.
+    const taken = await api()
+      .post('/api/kiosk/pin')
+      .set(bearer(kioskToken))
+      .send({ currentPin: '4826', newPin: '7351' })
+      .expect(409);
+    expect(taken.body.error.code).toBe('PIN_TAKEN');
+    const changed = await api()
+      .post('/api/kiosk/pin')
+      .set(bearer(kioskToken))
+      .send({ currentPin: '4826', newPin: '5937' })
+      .expect(200);
+    expect(changed.body).toEqual({ name: 'Ana' });
+    expect((await out('5937').expect(201)).body.person.id).toBe(ana.id);
   });
 
   it('valida los datos', async () => {

@@ -25,3 +25,4 @@ export * from './dashboard/GetDashboardSummaryUseCase';
 export * from './kiosk/KioskUseCases';
 export * from './ranking/PeriodRankingUseCases';
 export * from './charge/ChargeUseCases';
+export * from './person/PinIdentifier';

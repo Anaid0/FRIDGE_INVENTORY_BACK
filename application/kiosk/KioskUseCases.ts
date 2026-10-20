@@ -24,6 +24,7 @@ import {
 } from '../dto';
 import type { StockMovementRecorder } from '../movement/StockMovementRecorder';
 import type { PinVerifier } from '../person/PinVerifier';
+import type { PinIdentifier } from '../person/PinIdentifier';
 import { KIOSK_TOKEN_ROLE, type Clock, type IdGenerator, type TokenService, type UnitOfWork } from '../ports';
 import { requireAdmin } from '../shared/authorization';
 
@@ -146,7 +147,8 @@ export class ListKioskPeopleUseCase {
 }
 
 export interface KioskMovementInput {
-  personId: string;
+  /** Solo las versiones anteriores de la app eligen a la persona; ahora el PIN la identifica. */
+  personId?: string;
   pin: string;
   type: MovementType;
   items: { productId: string; quantity: number }[];
@@ -171,13 +173,17 @@ export class KioskRegisterMovementsUseCase {
     private readonly uow: UnitOfWork,
     private readonly users: UserRepository,
     private readonly verifier: PinVerifier,
+    private readonly identifier: PinIdentifier,
     private readonly recorder: StockMovementRecorder,
     private readonly clock: Clock,
   ) {}
 
-  async execute(input: KioskMovementInput): Promise<KioskMovementResult> {
+  /** `deviceId`: la tablet que registra (con el PIN solo, los intentos fallidos cuentan para ella). */
+  async execute(input: KioskMovementInput, deviceId: string): Promise<KioskMovementResult> {
     const items = this.validateItems(input.items);
-    const person = await this.verifier.verify(this.users, input.personId, input.pin);
+    const person = input.personId
+      ? await this.verifier.verify(this.users, input.personId, input.pin)
+      : await this.identifier.identify(deviceId, input.pin);
 
     return this.uow.run(async (repos) => {
       const now = this.clock.now();

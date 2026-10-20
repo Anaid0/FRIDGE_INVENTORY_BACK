@@ -11,6 +11,7 @@ import { toPersonDto, type PersonDto } from '../dto';
 import type { Clock, IdGenerator, PasswordHasher } from '../ports';
 import { requireAdmin } from '../shared/authorization';
 import { getUserOrFail } from '../shared/loaders';
+import { assertPinAvailable, type PinIdentifier } from './PinIdentifier';
 import type { PinVerifier } from './PinVerifier';
 
 const normalize = (text: string) =>
@@ -58,6 +59,7 @@ export class RegisterPersonUseCase {
   async execute(input: RegisterPersonInput, actor: Actor): Promise<PersonDto> {
     requireAdmin(actor);
     const pin = Pin.create(input.pin);
+    await assertPinAvailable(this.users, this.hasher, pin.value);
     const now = this.clock.now();
     const person = User.createPerson({
       id: this.ids.generate(),
@@ -94,7 +96,10 @@ export class UpdatePersonUseCase {
   }
 }
 
-/** El admin asigna o restablece el PIN (también desbloquea a la persona). */
+/**
+ * El admin asigna o restablece el PIN (también desbloquea a la persona). Pide su contraseña: así nadie
+ * cambia el PIN de otro con una sesión de admin que quedó abierta.
+ */
 export class ResetPersonPinUseCase {
   constructor(
     private readonly users: UserRepository,
@@ -102,10 +107,22 @@ export class ResetPersonPinUseCase {
     private readonly clock: Clock,
   ) {}
 
-  async execute(personId: string, input: { pin: string }, actor: Actor): Promise<PersonDto> {
+  async execute(
+    personId: string,
+    input: { pin: string; adminPassword: string },
+    actor: Actor,
+  ): Promise<PersonDto> {
     requireAdmin(actor);
+    const admin = await getUserOrFail(this.users, actor.id);
+    const passwordOk =
+      Boolean(admin.passwordHash) &&
+      (await this.hasher.verify(input.adminPassword, admin.passwordHash as string));
+    if (!passwordOk) {
+      throw new ValidationError('La contraseña de administrador no es correcta', 'INVALID_ADMIN_PASSWORD');
+    }
     const person = await getPersonOrFail(this.users, personId);
     const pin = Pin.create(input.pin);
+    await assertPinAvailable(this.users, this.hasher, pin.value, person.id);
     const now = this.clock.now();
     person.changePin(await this.hasher.hash(pin.value), now);
     await this.users.save(person);
@@ -147,7 +164,37 @@ export class ChangeOwnPinUseCase {
     if (newPin.value === input.currentPin) {
       throw new ValidationError('El PIN nuevo debe ser distinto del actual', 'SAME_PIN');
     }
+    await assertPinAvailable(this.users, this.hasher, newPin.value, person.id);
     person.changePin(await this.hasher.hash(newPin.value), this.clock.now());
     await this.users.save(person);
+  }
+}
+
+export interface ChangeOwnPinByPinInput {
+  /** Tablet desde la que se cambia (los PIN incorrectos cuentan para ella). */
+  deviceId: string;
+  currentPin: string;
+  newPin: string;
+}
+
+/** En la tablet, sin elegir nombre: el PIN actual identifica a la persona y se cambia por el nuevo. */
+export class ChangeOwnPinByPinUseCase {
+  constructor(
+    private readonly users: UserRepository,
+    private readonly identifier: PinIdentifier,
+    private readonly hasher: PasswordHasher,
+    private readonly clock: Clock,
+  ) {}
+
+  async execute(input: ChangeOwnPinByPinInput): Promise<{ name: string }> {
+    const newPin = Pin.create(input.newPin);
+    if (newPin.value === input.currentPin) {
+      throw new ValidationError('El PIN nuevo debe ser distinto del actual', 'SAME_PIN');
+    }
+    const person = await this.identifier.identify(input.deviceId, input.currentPin);
+    await assertPinAvailable(this.users, this.hasher, newPin.value, person.id);
+    person.changePin(await this.hasher.hash(newPin.value), this.clock.now());
+    await this.users.save(person);
+    return { name: person.name };
   }
 }

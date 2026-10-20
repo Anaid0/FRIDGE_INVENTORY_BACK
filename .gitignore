@@ -9,3 +9,5 @@ uploads/
 infraestructure/persistence/prisma/generated/
 uploads-e2e/
 backups/
+.env.production
+certs/

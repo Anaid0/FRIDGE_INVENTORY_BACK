@@ -26,6 +26,8 @@ export class PrismaKioskDeviceRepository implements KioskDeviceRepository {
       lastSeenAt: device.lastSeenAt,
       revokedAt: device.revokedAt,
       revokedBy: device.revokedBy,
+      failedPinAttempts: device.failedPinAttempts,
+      pinLockedUntil: device.pinLockedUntil,
     };
     await this.db.kioskDevice.upsert({ where: { id: device.id }, create: data, update: data });
   }

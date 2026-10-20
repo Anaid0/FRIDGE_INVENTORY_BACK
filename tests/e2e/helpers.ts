@@ -33,6 +33,7 @@ export async function createE2EContext() {
 
   /** Vacía las tablas en el orden de las FK (sin desactivar FOREIGN_KEY_CHECKS, que es por conexión). */
   async function reset() {
+    usedPins.clear();
     await prisma.periodRankingEntry.deleteMany();
     await prisma.periodRanking.deleteMany();
     await prisma.inventoryMovement.deleteMany();
@@ -61,8 +62,15 @@ export async function createE2EContext() {
     return res.body.token as string;
   }
 
+  /** PIN válidos y distintos (dos personas no pueden tener el mismo PIN) para las que no indican uno. */
+  const SPARE_PINS = ['2580', '3691', '4826', '5937', '6148', '7259', '8361', '9472', '1738', '2847'];
+  const usedPins = new Set<string>();
+
   /** Registra una persona (nombre + PIN) como admin y devuelve su id. Las personas no inician sesión. */
-  async function createPerson(adminToken: string, name: string, pin = '2580') {
+  async function createPerson(adminToken: string, name: string, explicitPin?: string) {
+    const pin = explicitPin ?? SPARE_PINS.find((candidate) => !usedPins.has(candidate));
+    if (!pin) throw new Error('No quedan PIN de prueba libres');
+    usedPins.add(pin);
     const res = await request(app)
       .post('/api/people')
       .set('Authorization', `Bearer ${adminToken}`)

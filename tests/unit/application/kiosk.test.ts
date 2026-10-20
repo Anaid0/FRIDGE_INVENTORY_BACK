@@ -1,18 +1,33 @@
 import { describe, expect, it } from 'vitest';
 import {
   AuthenticateKioskDeviceUseCase,
+  ChangeOwnPinByPinUseCase,
   GetTopWithdrawersUseCase,
   KIOSK_TOKEN_TTL,
   KioskRegisterMovementsUseCase,
   ListKioskDevicesUseCase,
   ListKioskPeopleUseCase,
   PairKioskDeviceUseCase,
+  PinIdentifier,
   PinVerifier,
+  RegisterPersonUseCase,
+  ResetPersonPinUseCase,
   RevokeKioskDeviceUseCase,
+  type KioskMovementInput,
   type TokenPayload,
 } from '../../../application';
-import { InvalidPinError, PIN_MAX_ATTEMPTS, PinLockedError, Role, User } from '../../../domain';
+import {
+  InvalidPinError,
+  KIOSK_PIN_MAX_ATTEMPTS,
+  KioskDevice,
+  PIN_MAX_ATTEMPTS,
+  PinLockedError,
+  Role,
+  User,
+} from '../../../domain';
 import { createOfficeContext, TZ } from '../../support/testContext';
+
+const TABLET_ID = 'tablet-test';
 
 async function setup() {
   const ctx = await createOfficeContext();
@@ -26,6 +41,15 @@ async function setup() {
     verify: (token: string) => ctx.tokens.verify(token),
   };
   const verifier = new PinVerifier(hasher, clock);
+  const identifier = new PinIdentifier(repos.users, repos.kioskDevices, hasher, clock);
+  const registerUseCase = new KioskRegisterMovementsUseCase(
+    uow,
+    repos.users,
+    verifier,
+    identifier,
+    recorder,
+    clock,
+  );
   const gaseosa = await ctx.seedProduct('Gaseosa', { stock: 10 });
   const yogur = await ctx.seedProduct('Yogur', { stock: 3 });
   return {
@@ -38,7 +62,11 @@ async function setup() {
     revoke: new RevokeKioskDeviceUseCase(repos.kioskDevices, repos.users, clock),
     authenticate: new AuthenticateKioskDeviceUseCase(repos.kioskDevices, clock),
     people: new ListKioskPeopleUseCase(repos.users, clock),
-    register: new KioskRegisterMovementsUseCase(uow, repos.users, verifier, recorder, clock),
+    register: {
+      // Las pruebas de esta sección eligen a la persona (versiones anteriores de la app).
+      execute: (input: KioskMovementInput) => registerUseCase.execute(input, TABLET_ID),
+    },
+    registerUseCase,
     ranking: new GetTopWithdrawersUseCase(repos.movements, repos.periods, clock, TZ),
   };
 }
@@ -265,5 +293,101 @@ describe('KioskRegisterMovementsUseCase', () => {
         items: [{ productId: gaseosa.id, quantity: 1 }],
       }),
     ).rejects.toMatchObject({ code: 'PERSON_NOT_FOUND' });
+  });
+});
+
+describe('El PIN identifica a la persona (sin elegir nombre)', () => {
+  async function pinSetup() {
+    const ctx = await setup();
+    const { repos, hasher, ids, clock } = ctx;
+    await repos.kioskDevices.save(
+      KioskDevice.pair({ id: TABLET_ID, name: 'Tablet cocina', createdBy: ctx.admin.id, now: clock.now() }),
+    );
+    const pepa = await ctx.seedUser({ name: 'Pepa', pin: '4826' });
+    const tono = await ctx.seedUser({ name: 'Tono', pin: '3691' });
+    const identifier = new PinIdentifier(repos.users, repos.kioskDevices, hasher, clock);
+    const take = (pin: string) =>
+      ctx.registerUseCase.execute(
+        { pin, type: 'OUT', items: [{ productId: ctx.gaseosa.id, quantity: 1 }] },
+        TABLET_ID,
+      );
+    return {
+      ...ctx,
+      pepa,
+      tono,
+      take,
+      registerPerson: new RegisterPersonUseCase(repos.users, hasher, ids, clock),
+      resetPin: new ResetPersonPinUseCase(repos.users, hasher, clock),
+      changePin: new ChangeOwnPinByPinUseCase(repos.users, identifier, hasher, clock),
+    };
+  }
+
+  it('con solo el PIN registra a nombre de su dueño', async () => {
+    const { take, pepa, tono } = await pinSetup();
+    expect((await take('4826')).person).toMatchObject({ id: pepa.id, name: 'Pepa' });
+    const result = await take('3691');
+    expect(result.person.id).toBe(tono.id);
+    expect(result.movements[0]).toMatchObject({ performedBy: tono.id, registeredBy: tono.id });
+  });
+
+  it('los PIN que no son de nadie cuentan por tablet: a los 5 la bloquea 2 minutos', async () => {
+    const { take, clock, stockOf, gaseosa, repos } = await pinSetup();
+    for (let i = 1; i < KIOSK_PIN_MAX_ATTEMPTS; i++) {
+      await expect(take('9999')).rejects.toMatchObject({
+        code: 'INVALID_PIN',
+        details: { remainingAttempts: KIOSK_PIN_MAX_ATTEMPTS - i },
+      });
+    }
+    await expect(take('9999')).rejects.toMatchObject({ code: 'PIN_LOCKED' });
+    // Bloqueada: ni el PIN correcto pasa.
+    await expect(take('4826')).rejects.toMatchObject({ code: 'PIN_LOCKED' });
+    expect(await stockOf(gaseosa.id)).toBe(10);
+
+    clock.set(new Date(clock.now().getTime() + 2 * 60_000 + 1));
+    await take('4826');
+    expect((await repos.kioskDevices.findById(TABLET_ID))?.failedPinAttempts).toBe(0);
+  });
+
+  it('un acierto reinicia la cuenta de la tablet', async () => {
+    const { take, repos } = await pinSetup();
+    await expect(take('9999')).rejects.toMatchObject({ code: 'INVALID_PIN' });
+    await take('4826');
+    await expect(take('9999')).rejects.toMatchObject({
+      details: { remainingAttempts: KIOSK_PIN_MAX_ATTEMPTS - 1 },
+    });
+    expect((await repos.kioskDevices.findById(TABLET_ID))?.failedPinAttempts).toBe(1);
+  });
+
+  it('un PIN repetido de antes de esta regla no registra nada y pide restablecerlo', async () => {
+    const { take } = await pinSetup(); // Ana y Luis se sembraron con el mismo PIN (2580)
+    await expect(take('2580')).rejects.toMatchObject({ code: 'PIN_AMBIGUOUS' });
+  });
+
+  it('no se puede dar a alguien un PIN que ya tiene otra persona', async () => {
+    const { registerPerson, resetPin, asAdmin, pepa } = await pinSetup();
+    await expect(
+      registerPerson.execute({ name: 'Nuevo', lastname: 'Test', pin: '4826' }, asAdmin),
+    ).rejects.toMatchObject({ code: 'PIN_TAKEN' });
+    await expect(
+      resetPin.execute(pepa.id, { pin: '3691', adminPassword: 'Nevera123' }, asAdmin),
+    ).rejects.toMatchObject({
+      code: 'PIN_TAKEN',
+    });
+    // Volver a poner su mismo PIN sí se puede (p. ej. para desbloquearla).
+    await resetPin.execute(pepa.id, { pin: '4826', adminPassword: 'Nevera123' }, asAdmin);
+  });
+
+  it('cada uno cambia su PIN en la tablet con el actual, sin elegir su nombre', async () => {
+    const { changePin, take, tono } = await pinSetup();
+    await expect(
+      changePin.execute({ deviceId: TABLET_ID, currentPin: '3691', newPin: '4826' }),
+    ).rejects.toMatchObject({
+      code: 'PIN_TAKEN',
+    });
+    expect(await changePin.execute({ deviceId: TABLET_ID, currentPin: '3691', newPin: '7319' })).toEqual({
+      name: 'Tono',
+    });
+    expect((await take('7319')).person.id).toBe(tono.id);
+    await expect(take('3691')).rejects.toMatchObject({ code: 'INVALID_PIN' });
   });
 });

@@ -194,5 +194,7 @@ export function toKioskDevice(row: Db.KioskDevice): KioskDevice {
     lastSeenAt: row.lastSeenAt,
     revokedAt: row.revokedAt,
     revokedBy: row.revokedBy,
+    failedPinAttempts: row.failedPinAttempts,
+    pinLockedUntil: row.pinLockedUntil,
   });
 }

@@ -112,6 +112,8 @@ export const clone = {
       lastSeenAt: d.lastSeenAt,
       revokedAt: d.revokedAt,
       revokedBy: d.revokedBy,
+      failedPinAttempts: d.failedPinAttempts,
+      pinLockedUntil: d.pinLockedUntil,
     }),
   purchase: (p: Purchase) =>
     Purchase.restore({

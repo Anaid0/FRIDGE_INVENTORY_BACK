@@ -1,0 +1,39 @@
+# Despliegue en Render (Blueprint): New → Blueprint → este repo.
+# Los valores con `sync: false` se escriben a mano en el panel de Render (son secretos).
+services:
+  - type: web
+    name: fridgeya-api
+    runtime: node
+    plan: free
+    region: virginia
+    branch: main
+    # Las dependencias de desarrollo hacen falta para compilar (typescript) y migrar (prisma).
+    buildCommand: npm ci --include=dev && npm run build
+    # Aplica las migraciones pendientes antes de arrancar.
+    startCommand: npm run db:deploy && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: '22'
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: CORS_ORIGIN
+        value: http://localhost,https://localhost,capacitor://localhost
+      - key: APP_TIMEZONE
+        value: America/Bogota
+      - key: CURRENCY
+        value: COP
+      - key: BCRYPT_ROUNDS
+        value: '10'
+      - key: LOG_LEVEL
+        value: info

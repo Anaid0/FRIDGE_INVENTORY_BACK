@@ -69,7 +69,9 @@ describe('Personas: alta y edición (admin)', () => {
     await expect(update.execute(admin.id, { name: 'X' }, asAdmin)).rejects.toMatchObject({
       code: 'NOT_A_PERSON',
     });
-    await expect(resetPin.execute(admin.id, { pin: '4826' }, asAdmin)).rejects.toMatchObject({
+    await expect(
+      resetPin.execute(admin.id, { pin: '4826', adminPassword: 'Nevera123' }, asAdmin),
+    ).rejects.toMatchObject({
       code: 'NOT_A_PERSON',
     });
   });
@@ -171,8 +173,16 @@ describe('PIN: cambio propio y reinicio por el admin', () => {
       await verifier.verify(repos.users, ana.id, '9999').catch(() => undefined);
     await expect(verifier.verify(repos.users, ana.id, '2580')).rejects.toBeInstanceOf(PinLockedError);
 
-    const dto = await resetPin.execute(ana.id, { pin: '7351' }, asAdmin);
+    const dto = await resetPin.execute(ana.id, { pin: '7351', adminPassword: 'Nevera123' }, asAdmin);
     expect(dto.isPinLocked).toBe(false);
     expect((await verifier.verify(repos.users, ana.id, '7351')).id).toBe(ana.id);
+  });
+
+  it('restablecer el PIN pide la contraseña del admin; si no es la suya, no cambia nada', async () => {
+    const { resetPin, verifier, repos, asAdmin, ana } = await setup();
+    await expect(
+      resetPin.execute(ana.id, { pin: '7351', adminPassword: 'otra-clave' }, asAdmin),
+    ).rejects.toMatchObject({ code: 'INVALID_ADMIN_PASSWORD' });
+    expect((await verifier.verify(repos.users, ana.id, '2580')).id).toBe(ana.id); // sigue con el PIN de antes
   });
 });

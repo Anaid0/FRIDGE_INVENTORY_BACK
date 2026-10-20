@@ -41,6 +41,8 @@ import {
   LoginUseCase,
   OpenFundingPeriodUseCase,
   PinVerifier,
+  PinIdentifier,
+  ChangeOwnPinByPinUseCase,
   RegisterPersonUseCase,
   ResetPersonPinUseCase,
   ChangeOwnPinUseCase,
@@ -109,6 +111,7 @@ export function createContainer(env: Env) {
   const recorder = new StockMovementRecorder(ids);
   const adminSafety = new AdminSafetyPolicy(users);
   const pinVerifier = new PinVerifier(hasher, clock);
+  const pinIdentifier = new PinIdentifier(users, kioskDevices, hasher, clock);
   const chargeGenerator = new ConsumptionChargeGenerator(ids, env.APP_TIMEZONE);
   const charges = new PrismaConsumptionChargeRepository(prisma);
 
@@ -129,13 +132,21 @@ export function createContainer(env: Env) {
     resetPersonPin: new ResetPersonPinUseCase(users, hasher, clock),
     listPeople: new ListPeopleUseCase(users, clock),
     changeOwnPin: new ChangeOwnPinUseCase(users, pinVerifier, hasher, clock),
+    changeOwnPinByPin: new ChangeOwnPinByPinUseCase(users, pinIdentifier, hasher, clock),
 
     pairKioskDevice: new PairKioskDeviceUseCase(kioskDevices, users, tokens, ids, clock),
     listKioskDevices: new ListKioskDevicesUseCase(kioskDevices, users),
     revokeKioskDevice: new RevokeKioskDeviceUseCase(kioskDevices, users, clock),
     authenticateKioskDevice: new AuthenticateKioskDeviceUseCase(kioskDevices, clock),
     listKioskPeople: new ListKioskPeopleUseCase(users, clock),
-    kioskRegisterMovements: new KioskRegisterMovementsUseCase(uow, users, pinVerifier, recorder, clock),
+    kioskRegisterMovements: new KioskRegisterMovementsUseCase(
+      uow,
+      users,
+      pinVerifier,
+      pinIdentifier,
+      recorder,
+      clock,
+    ),
 
     createCategory: new CreateCategoryUseCase(categories, ids, clock),
     listCategories: new ListCategoriesUseCase(categories),

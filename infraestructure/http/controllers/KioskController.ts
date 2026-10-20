@@ -14,6 +14,7 @@ export class KioskController {
       | 'listKioskPeople'
       | 'kioskRegisterMovements'
       | 'changeOwnPin'
+      | 'changeOwnPinByPin'
     >,
   ) {}
 
@@ -44,12 +45,23 @@ export class KioskController {
   registerMovements = async (req: Request, res: Response) => {
     res
       .status(201)
-      .json(await this.useCases.kioskRegisterMovements.execute(kioskMovementSchema.parse(req.body)));
+      .json(
+        await this.useCases.kioskRegisterMovements.execute(
+          kioskMovementSchema.parse(req.body),
+          kioskDeviceOf(req).id,
+        ),
+      );
   };
 
   changePin = async (req: Request, res: Response) => {
     const input = changeOwnPinSchema.parse(req.body);
     await this.useCases.changeOwnPin.execute({ personId: param(req, 'id'), ...input });
     res.status(204).end();
+  };
+
+  /** Cambiar el PIN sin elegir nombre: el PIN actual identifica a la persona. Devuelve su nombre. */
+  changePinByPin = async (req: Request, res: Response) => {
+    const input = changeOwnPinSchema.parse(req.body);
+    res.json(await this.useCases.changeOwnPinByPin.execute({ deviceId: kioskDeviceOf(req).id, ...input }));
   };
 }

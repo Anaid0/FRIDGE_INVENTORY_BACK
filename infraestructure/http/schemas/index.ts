@@ -54,7 +54,11 @@ export const updatePersonSchema = z
   })
   .refine((data) => Object.keys(data).length > 0, 'Envía al menos un campo para actualizar');
 
-export const resetPinSchema = z.object({ pin: pinField });
+export const resetPinSchema = z.object({
+  pin: pinField,
+  /** Contraseña del admin que restablece el PIN (se verifica de nuevo aunque tenga sesión). */
+  adminPassword: z.string().min(1, 'Escribe tu contraseña de administrador').max(200),
+});
 
 export const listPeopleQuery = z.object({
   isActive: queryBoolean.optional(),
@@ -196,7 +200,8 @@ export const dateRangeQuerySchema = z.object(dateRangeQuery);
 export const pairKioskSchema = z.object({ name: z.string().max(60) });
 
 export const kioskMovementSchema = z.object({
-  personId: id,
+  /** Opcional: la app actual no elige persona, el PIN la identifica (las versiones viejas sí la envían). */
+  personId: id.optional(),
   pin: z.string().max(10),
   type: z.enum(['IN', 'OUT']),
   items: z

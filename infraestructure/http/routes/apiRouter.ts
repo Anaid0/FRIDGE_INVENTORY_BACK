@@ -85,6 +85,7 @@ export function apiRouter(container: Container): Router {
   router.get('/kiosk/people', requireKiosk, h(kiosk.people));
   router.post('/kiosk/movements', requireKiosk, kioskLimiter, h(kiosk.registerMovements));
   router.post('/kiosk/people/:id/pin', requireKiosk, kioskLimiter, h(kiosk.changePin));
+  router.post('/kiosk/pin', requireKiosk, kioskLimiter, h(kiosk.changePinByPin));
 
   // --- Solo usuarios (admin): una tablet no pasa de aquí ---
   router.use(requireUser);
