@@ -18,7 +18,7 @@ export interface InventoryMovementProps {
   registeredBy: string; // quien lo registró en el sistema
   note: string | null;
   purchaseItemId: string | null;
-  /** Salidas manuales: precio unitario al momento de sacar (null si no se conocía). */
+  /** Movimientos manuales (entradas y salidas): precio unitario al momento del movimiento (null si no se conocía). */
   unitPrice?: Money | null;
   createdAt: Date;
 }
@@ -70,9 +70,9 @@ export class InventoryMovement {
       registeredBy: input.registeredBy,
       note: Guard.optionalText(input.note, 'note', NOTE_MAX),
       purchaseItemId: input.purchaseItemId ?? null,
-      // Solo el consumo real lleva precio: es lo que se cobra al cerrar la quincena.
-      unitPrice:
-        type === MovementType.OUT && source === MovementSource.MANUAL ? (input.unitPrice ?? null) : null,
+      // Solo los manuales guardan su precio (en las salidas es lo que se cobra al cerrar la quincena);
+      // los de compra/anulación lo toman del ítem de la compra.
+      unitPrice: source === MovementSource.MANUAL ? (input.unitPrice ?? null) : null,
       createdAt: input.now,
     });
   }

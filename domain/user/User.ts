@@ -17,6 +17,8 @@ export interface UserProps {
   pinHash: string | null;
   failedPinAttempts: number;
   pinLockedUntil: Date | null;
+  /** Solo ADMIN: hash del código numérico con el que entra a la administración desde la tablet. */
+  adminCodeHash?: string | null;
   role: Role;
   isActive: boolean;
   createdAt: Date;
@@ -107,6 +109,9 @@ export class User {
   get pinLockedUntil(): Date | null {
     return this.props.pinLockedUntil;
   }
+  get adminCodeHash(): string | null {
+    return this.props.adminCodeHash ?? null;
+  }
   get role(): Role {
     return this.props.role;
   }
@@ -133,6 +138,10 @@ export class User {
     return this.props.pinHash !== null;
   }
 
+  hasAdminCode(): boolean {
+    return this.adminCodeHash !== null;
+  }
+
   /** Solo los administradores tienen cuenta (email + contraseña) para iniciar sesión. */
   canLogIn(): boolean {
     return this.isAdmin() && this.props.email !== null && this.props.passwordHash !== null;
@@ -153,6 +162,15 @@ export class User {
   changePassword(passwordHash: string, now: Date): void {
     this.assertAccount();
     this.props.passwordHash = User.requiredHash(passwordHash, 'passwordHash');
+    this.touch(now);
+  }
+
+  /** Código de administrador para entrar desde la tablet (ya validado y con hash). */
+  changeAdminCode(adminCodeHash: string, now: Date): void {
+    if (!this.isAdmin()) {
+      throw new ValidationError('Solo los administradores tienen código de administrador', 'NOT_AN_ADMIN');
+    }
+    this.props.adminCodeHash = User.requiredHash(adminCodeHash, 'adminCodeHash');
     this.touch(now);
   }
 

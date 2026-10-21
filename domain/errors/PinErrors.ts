@@ -50,3 +50,19 @@ export class UnknownPinError extends UnauthorizedError {
     );
   }
 }
+
+/**
+ * Código de administrador incorrecto en la tablet. Cuenta para la tablet igual que un PIN incorrecto
+ * (mismos intentos y mismo bloqueo).
+ */
+export class InvalidAdminCodeError extends UnauthorizedError {
+  constructor(remainingAttempts: number) {
+    super(
+      remainingAttempts === 1
+        ? 'Código de administrador incorrecto. Queda 1 intento antes de bloquear la tablet un par de minutos.'
+        : `Código de administrador incorrecto. Quedan ${remainingAttempts} intentos antes de bloquear la tablet un par de minutos.`,
+      'INVALID_ADMIN_CODE',
+      { remainingAttempts },
+    );
+  }
+}

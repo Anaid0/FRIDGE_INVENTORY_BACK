@@ -2,12 +2,15 @@ import { InsufficientStockError } from '../errors/InsufficientStockError';
 import { ConflictError, ValidationError } from '../shared/DomainError';
 import { Guard } from '../shared/Guard';
 import type { Money } from '../shared/Money';
+import { ProductCode } from './ProductCode';
 import type { Quantity } from './Quantity';
 import type { StockChange } from './StockChange';
 
 export interface ProductProps {
   id: string;
   name: string;
+  /** Código de 2 dígitos para el teclado de la tablet (10 a 99). Opcional: los productos viejos no lo tenían. */
+  code?: string | null;
   description: string | null;
   unit: string;
   quantity: number; // stock actual
@@ -22,6 +25,7 @@ export interface ProductProps {
 
 export interface ProductDetails {
   name: string;
+  code?: string | null;
   description?: string | null;
   unit?: string;
   minStock?: number;
@@ -59,6 +63,9 @@ export class Product {
   get name(): string {
     return this.props.name;
   }
+  get code(): string | null {
+    return this.props.code ?? null;
+  }
   get description(): string | null {
     return this.props.description;
   }
@@ -93,6 +100,12 @@ export class Product {
 
   updateDetails(details: ProductDetails, now: Date): void {
     this.props = { ...this.props, ...Product.validateDetails(details), updatedAt: now };
+  }
+
+  /** Asigna (o cambia) el código del teclado. Que no lo tenga otro producto lo revisa el caso de uso. */
+  assignCode(code: string, now: Date): void {
+    this.props.code = ProductCode.create(code).value;
+    this.props.updatedAt = now;
   }
 
   addStock(quantity: Quantity, now: Date): StockChange {
@@ -144,6 +157,7 @@ export class Product {
   private static validateDetails(details: ProductDetails) {
     return {
       name: Guard.requiredText(details.name, 'name', NAME_MAX),
+      code: details.code == null ? null : ProductCode.create(details.code).value,
       description: Guard.optionalText(details.description, 'description', DESCRIPTION_MAX),
       unit: Guard.optionalText(details.unit, 'unit', UNIT_MAX) ?? DEFAULT_UNIT,
       minStock: Guard.nonNegativeInteger(details.minStock ?? 0, 'minStock'),

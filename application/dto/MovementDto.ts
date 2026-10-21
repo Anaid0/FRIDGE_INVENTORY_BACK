@@ -12,7 +12,7 @@ export interface MovementDto {
   registeredBy: string;
   note: string | null;
   purchaseItemId: string | null;
-  /** Salidas manuales: precio unitario guardado al sacar (decimal), o null. */
+  /** Movimientos manuales: precio unitario guardado al registrarlo (decimal), o null. */
   unitPrice: string | null;
   createdAt: Date;
 }

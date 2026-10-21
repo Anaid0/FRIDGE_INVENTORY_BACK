@@ -13,6 +13,8 @@ export function toCategoryDto(category: Category): CategoryDto {
 export interface ProductDto {
   id: string;
   name: string;
+  /** Código de 2 dígitos del teclado de la tablet (null solo si no se le ha asignado). */
+  code: string | null;
   description: string | null;
   unit: string;
   quantity: number;
@@ -33,6 +35,7 @@ export function toProductDto(product: Product, lastPurchasePrice: Money | null =
   return {
     id: product.id,
     name: product.name,
+    code: product.code,
     description: product.description,
     unit: product.unit,
     quantity: product.quantity,

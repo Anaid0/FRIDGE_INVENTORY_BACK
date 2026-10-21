@@ -12,6 +12,12 @@ import {
 
 const role = z.enum(['ADMIN', 'EMPLOYEE']);
 
+/** El admin define su código para la tablet: el dominio valida el formato (4 a 6 dígitos, no trivial). */
+export const setAdminCodeSchema = z.object({
+  password: z.string().min(1, 'Escribe tu contraseña de administrador').max(200),
+  code: z.string().max(20),
+});
+
 export const loginSchema = z.object({
   email: z.string().max(150),
   password: z.string().max(200),
@@ -73,8 +79,12 @@ export const listUsersQuery = z.object({
 
 export const categorySchema = z.object({ name: z.string().max(80) });
 
+/** El dominio valida el formato del código (2 dígitos, del 10 al 99) con un error propio. */
+const productCode = z.string().max(10);
+
 export const createProductSchema = z.object({
   name: z.string().max(120),
+  code: productCode.nullish(),
   description: optionalText(255),
   unit: z.string().max(20).optional(),
   minStock: z.number().int().min(0).optional(),
@@ -86,6 +96,7 @@ export const createProductSchema = z.object({
 export const updateProductSchema = z
   .object({
     name: z.string().max(120).optional(),
+    code: productCode.optional(),
     description: optionalText(255),
     unit: z.string().max(20).optional(),
     minStock: z.number().int().min(0).optional(),
@@ -96,6 +107,7 @@ export const updateProductSchema = z
   .refine((data) => Object.keys(data).length > 0, 'Envía al menos un campo para actualizar');
 
 export const listProductsQuery = z.object({
+  /** Busca por nombre o por código. */
   search: z.string().trim().max(120).optional(),
   categoryId: id.optional(),
   lowStock: queryBoolean.optional(),
@@ -209,6 +221,11 @@ export const kioskMovementSchema = z.object({
     .min(1, 'Elige al menos un producto')
     .max(20),
   note: optionalText(255),
+});
+
+/** Código de administrador marcado en el teclado de la tablet. */
+export const kioskAdminSessionSchema = z.object({
+  code: z.string().regex(/^\d{4,6}$/, 'El código de administrador tiene de 4 a 6 dígitos'),
 });
 
 export const changeOwnPinSchema = z.object({

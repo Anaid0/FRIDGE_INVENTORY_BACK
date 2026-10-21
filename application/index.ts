@@ -5,6 +5,7 @@ export * from './shared/dates';
 export * from './shared/pagination';
 export * from './auth/LoginUseCase';
 export * from './auth/GetCurrentUserUseCase';
+export * from './auth/AdminCodeUseCases';
 export * from './user/AdminSafetyPolicy';
 export * from './user/RegisterAdminUseCase';
 export * from './user/ListUsersUseCase';

@@ -86,10 +86,13 @@ export function apiRouter(container: Container): Router {
   router.post('/kiosk/movements', requireKiosk, kioskLimiter, h(kiosk.registerMovements));
   router.post('/kiosk/people/:id/pin', requireKiosk, kioskLimiter, h(kiosk.changePin));
   router.post('/kiosk/pin', requireKiosk, kioskLimiter, h(kiosk.changePinByPin));
+  // Un admin entra a la administración desde el teclado de la tablet con su código (cuenta como un PIN).
+  router.post('/kiosk/admin-session', requireKiosk, kioskLimiter, h(kiosk.adminSession));
 
   // --- Solo usuarios (admin): una tablet no pasa de aquí ---
   router.use(requireUser);
   router.get('/auth/me', h(authCtrl.me));
+  router.put('/auth/me/admin-code', admin, h(authCtrl.setAdminCode));
 
   router.get('/kiosk/devices', admin, h(kiosk.list));
   router.post('/kiosk/devices', admin, h(kiosk.pair));

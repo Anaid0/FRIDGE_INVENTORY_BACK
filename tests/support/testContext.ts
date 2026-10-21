@@ -88,7 +88,13 @@ export function createTestContext() {
 
   async function seedProduct(
     name: string,
-    options: { stock?: number; minStock?: number; categoryId?: string | null; isActive?: boolean } = {},
+    options: {
+      stock?: number;
+      minStock?: number;
+      categoryId?: string | null;
+      isActive?: boolean;
+      code?: string;
+    } = {},
   ) {
     const created = Product.create({
       id: `prod-${name.toLowerCase().replace(/\s+/g, '-')}`,
@@ -100,6 +106,7 @@ export function createTestContext() {
     const product = Product.restore({
       id: created.id,
       name: created.name,
+      code: options.code ?? null,
       description: null,
       unit: created.unit,
       quantity: options.stock ?? 0,

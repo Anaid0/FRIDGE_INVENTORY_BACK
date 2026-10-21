@@ -4,6 +4,7 @@ import {
   NotFoundError,
   Money,
   Product,
+  ProductCode,
   Quantity,
   type Actor,
   type CategoryRepository,
@@ -29,8 +30,30 @@ function nameTaken(name: string) {
   return new ConflictError('Ya existe un producto con ese nombre', 'PRODUCT_NAME_TAKEN', { name });
 }
 
+/** En el teclado de la tablet el código es lo único que identifica al producto: no se repite (ni con inactivos). */
+async function assertCodeAvailable(products: ProductRepository, code: string, exceptId?: string) {
+  const owner = await products.findByCode(code);
+  if (owner && owner.id !== exceptId) {
+    throw new ConflictError(`El código ${code} ya lo tiene ${owner.name}`, 'PRODUCT_CODE_TAKEN', {
+      code,
+      productId: owner.id,
+    });
+  }
+}
+
+/** Primer código libre en el orden de la cuadrícula de la máquina (ver ProductCode). */
+async function nextFreeCode(products: ProductRepository): Promise<string> {
+  const free = ProductCode.firstFree(await products.findTakenCodes());
+  if (!free) {
+    throw new ConflictError('Ya están ocupados todos los códigos, del 10 al 99', 'NO_PRODUCT_CODE_AVAILABLE');
+  }
+  return free.value;
+}
+
 export interface CreateProductInput {
   name: string;
+  /** Código de 2 dígitos del teclado (10 a 99). Si no se envía, se asigna el primero libre. */
+  code?: string | null;
   description?: string | null;
   unit?: string;
   minStock?: number;
@@ -67,6 +90,8 @@ export class CreateProductUseCase {
 
     return this.uow.run(async (repos) => {
       if (await repos.products.findByName(product.name)) throw nameTaken(product.name);
+      if (product.code) await assertCodeAvailable(repos.products, product.code);
+      else product.assignCode(await nextFreeCode(repos.products), now);
       await repos.products.save(product);
       if (!initial) return toProductDto(product);
 
@@ -86,6 +111,8 @@ export class CreateProductUseCase {
 
 export interface UpdateProductInput {
   name?: string;
+  /** Cambiar el código del teclado (no se puede quitar: todo producto tiene uno). */
+  code?: string;
   description?: string | null;
   unit?: string;
   minStock?: number;
@@ -112,6 +139,7 @@ export class UpdateProductUseCase {
     product.updateDetails(
       {
         name: input.name ?? product.name,
+        code: input.code ?? product.code,
         description: input.description !== undefined ? input.description : product.description,
         unit: input.unit ?? product.unit,
         minStock: input.minStock ?? product.minStock,
@@ -124,6 +152,9 @@ export class UpdateProductUseCase {
 
     const owner = await this.products.findByName(product.name);
     if (owner && owner.id !== product.id) throw nameTaken(product.name);
+    if (input.code !== undefined && product.code) {
+      await assertCodeAvailable(this.products, product.code, product.id);
+    }
 
     if (input.isActive === true) product.activate(now);
     if (input.isActive === false) product.deactivate(now);

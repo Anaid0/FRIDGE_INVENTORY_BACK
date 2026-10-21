@@ -17,6 +17,9 @@ export interface MovementView {
   performedBy: UserRef;
   registeredBy: UserRef;
   purchaseId: string | null;
-  /** Salidas manuales: precio unitario guardado al sacar (null si no se conocía). */
+  /**
+   * Precio unitario: el guardado en los movimientos manuales (entradas y salidas) o, en los de compra y
+   * anulación, el del ítem de la compra. null si no se conocía.
+   */
   unitPrice: Money | null;
 }

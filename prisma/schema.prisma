@@ -43,6 +43,8 @@ model User {
   pinHash           String?   @map("pin_hash") @db.VarChar(255)
   failedPinAttempts Int       @default(0) @map("failed_pin_attempts") @db.UnsignedInt
   pinLockedUntil    DateTime? @map("pin_locked_until") @db.DateTime(3)
+  /// Solo ADMIN: código numérico (4 a 6 dígitos, con hash) para entrar a la administración desde la tablet.
+  adminCodeHash     String?   @map("admin_code_hash") @db.VarChar(255)
   role              Role      @default(EMPLOYEE)
   isActive          Boolean   @default(true) @map("is_active")
   createdAt         DateTime  @default(now()) @map("created_at") @db.DateTime(3)
@@ -79,6 +81,8 @@ model Category {
 model Product {
   id             String   @id @default(uuid()) @db.Char(36)
   name           String   @unique @db.VarChar(120)
+  /// Código de 2 dígitos (10 a 99) que se marca en el teclado de la tablet ("máquina expendedora").
+  code           String?  @unique @db.VarChar(2)
   description    String?  @db.VarChar(255)
   unit           String   @default("unidad") @db.VarChar(20)
   quantity       Int      @default(0) @db.UnsignedInt // stock actual
@@ -111,7 +115,7 @@ model InventoryMovement {
   stockAfter     Int            @map("stock_after") @db.UnsignedInt
   note           String?        @db.VarChar(255)
   purchaseItemId String?        @unique @map("purchase_item_id") @db.Char(36)
-  /// Solo salidas manuales: precio unitario al momento de sacar (última compra del producto). Fijo una vez guardado.
+  /// Solo movimientos manuales (entradas y salidas): precio unitario al momento del movimiento (última compra del producto). Fijo una vez guardado.
   unitPrice      Decimal?       @map("unit_price") @db.Decimal(12, 2)
   createdAt      DateTime       @default(now()) @map("created_at") @db.DateTime(3)
 

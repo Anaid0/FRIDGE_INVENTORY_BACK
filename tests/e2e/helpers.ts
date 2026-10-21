@@ -7,8 +7,10 @@ import { createContainer, type Container } from '../../infraestructure/config/co
 import { loadEnv } from '../../infraestructure/config/env';
 import { createApp } from '../../infraestructure/http/server';
 import { createPrismaClient, type PrismaClient } from '../../infraestructure/persistence/prisma/prismaClient';
+import { E2E_ADMIN_CODE } from '../../scripts/e2eEnv';
 
-export const ADMIN = { email: 'admin@e2e.test', password: 'AdminE2e123' };
+/** Admin de los e2e. `code`: su código para entrar a la administración desde la tablet. */
+export const ADMIN = { email: 'admin@e2e.test', password: 'AdminE2e123', code: E2E_ADMIN_CODE };
 
 /**
  * App real (Express + Prisma + MySQL) contra la base de tests. Antes de cada archivo vacía las tablas.
@@ -52,6 +54,7 @@ export async function createE2EContext() {
         lastname: 'E2E',
         email: ADMIN.email,
         passwordHash: await bcrypt.hash(ADMIN.password, 4),
+        adminCodeHash: await bcrypt.hash(ADMIN.code, 4),
         role: 'ADMIN',
       },
     });

@@ -29,4 +29,12 @@ describe('loadEnv', () => {
   it('rechaza una DATABASE_URL que no sea MySQL', () => {
     expect(() => loadEnv({ ...validEnv, DATABASE_URL: 'postgres://x' })).toThrow(/DATABASE_URL/);
   });
+
+  it('ADMIN_CODE es opcional (vacío = sin código) y debe tener de 4 a 6 dígitos', () => {
+    expect(loadEnv(validEnv).ADMIN_CODE).toBeUndefined();
+    expect(loadEnv({ ...validEnv, ADMIN_CODE: '' }).ADMIN_CODE).toBeUndefined();
+    expect(loadEnv({ ...validEnv, ADMIN_CODE: '482915' }).ADMIN_CODE).toBe('482915');
+    expect(() => loadEnv({ ...validEnv, ADMIN_CODE: '12' })).toThrow(/ADMIN_CODE/);
+    expect(() => loadEnv({ ...validEnv, ADMIN_CODE: '12ab' })).toThrow(/ADMIN_CODE/);
+  });
 });

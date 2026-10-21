@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { Category, InsufficientStockError, Product, Quantity, ValidationError } from '../../../domain';
+import {
+  Category,
+  InsufficientStockError,
+  Product,
+  ProductCode,
+  Quantity,
+  ValidationError,
+} from '../../../domain';
 import { LATER, makeProduct, NOW } from './fixtures';
 
 describe('Quantity', () => {
@@ -115,5 +122,63 @@ describe('Product', () => {
     });
     expect(product.quantity).toBe(9);
     expect(product.id).toBe('p1');
+  });
+});
+
+describe('ProductCode', () => {
+  it.each(['10', '11', '57', '99', ' 42 '])('acepta %s', (raw) => {
+    expect(ProductCode.create(raw).value).toBe(raw.trim());
+  });
+
+  it.each(['', '1', '05', '00', '100', 'ab', '1a', '9 9'])('rechaza "%s"', (raw) => {
+    expect(() => ProductCode.create(raw)).toThrow(
+      expect.objectContaining({
+        code: 'INVALID_PRODUCT_CODE',
+        message: 'El código debe tener 2 dígitos, del 10 al 99',
+      }),
+    );
+  });
+
+  it('se reparte en filas de 4 como la máquina: 11-14 … 91-94, luego 15-19 … 95-99, luego 10 … 90', () => {
+    const order = ProductCode.assignmentOrder;
+    expect(order).toHaveLength(90);
+    expect(new Set(order).size).toBe(90);
+    expect(order.slice(0, 9)).toEqual(['11', '12', '13', '14', '21', '22', '23', '24', '31']);
+    expect(order.slice(32, 42)).toEqual(['91', '92', '93', '94', '15', '16', '17', '18', '19', '25']);
+    expect(order.slice(76, 81)).toEqual(['95', '96', '97', '98', '99']);
+    expect(order.slice(81)).toEqual(['10', '20', '30', '40', '50', '60', '70', '80', '90']);
+  });
+
+  it('firstFree devuelve el primer código libre en ese orden, o null si no queda ninguno', () => {
+    expect(ProductCode.firstFree([])?.value).toBe('11');
+    expect(ProductCode.firstFree(['11', '12', '14'])?.value).toBe('13');
+    expect(ProductCode.firstFree(ProductCode.assignmentOrder.slice(0, 36))?.value).toBe('15');
+    expect(ProductCode.firstFree(ProductCode.assignmentOrder.filter((c) => c !== '10'))?.value).toBe('10');
+    expect(ProductCode.firstFree(ProductCode.assignmentOrder)).toBeNull();
+  });
+});
+
+describe('Product: código del teclado', () => {
+  it('es opcional al crear (lo asigna el caso de uso) y se valida si viene', () => {
+    expect(Product.create({ id: 'p1', name: 'Yogur', now: NOW }).code).toBeNull();
+    expect(Product.create({ id: 'p1', name: 'Yogur', code: '23', now: NOW }).code).toBe('23');
+    expect(() => Product.create({ id: 'p1', name: 'Yogur', code: '5', now: NOW })).toThrow(
+      expect.objectContaining({ code: 'INVALID_PRODUCT_CODE' }),
+    );
+  });
+
+  it('assignCode valida el código y actualiza la fecha', () => {
+    const product = makeProduct();
+    product.assignCode('31', LATER);
+    expect(product.code).toBe('31');
+    expect(product.updatedAt).toBe(LATER);
+    expect(() => product.assignCode('100', LATER)).toThrow(ValidationError);
+    expect(product.code).toBe('31');
+  });
+
+  it('updateDetails conserva o cambia el código', () => {
+    const product = makeProduct(0, { code: '11' });
+    product.updateDetails({ name: 'Gaseosa', code: '12' }, LATER);
+    expect(product.code).toBe('12');
   });
 });

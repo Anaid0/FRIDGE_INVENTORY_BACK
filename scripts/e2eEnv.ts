@@ -3,6 +3,9 @@ import 'dotenv/config';
 /** Puerto de la API durante los e2e del navegador (el front de pruebas apunta aquí). */
 export const E2E_API_PORT = '3100';
 
+/** Código de administrador del admin de los e2e (lo pone el seed): para entrar a la administración desde la tablet. */
+export const E2E_ADMIN_CODE = '482915';
+
 /**
  * Variables de entorno para los e2e: misma configuración del .env pero contra DATABASE_URL_TEST.
  * Se niega a continuar si esa base no termina en "_test" (para no borrar la de desarrollo).
@@ -25,5 +28,6 @@ export function e2eEnv(): NodeJS.ProcessEnv {
     PORT: E2E_API_PORT,
     BCRYPT_ROUNDS: '4',
     UPLOADS_DIR: './uploads-e2e',
+    ADMIN_CODE: E2E_ADMIN_CODE,
   };
 }

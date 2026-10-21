@@ -1,6 +1,7 @@
 import {
   AdminSafetyPolicy,
   AuthenticateKioskDeviceUseCase,
+  KioskAdminSessionUseCase,
   KioskRegisterMovementsUseCase,
   ListKioskDevicesUseCase,
   ListKioskPeopleUseCase,
@@ -52,6 +53,7 @@ import {
   RegisterStockInUseCase,
   RegisterStockOutUseCase,
   RegisterAdminUseCase,
+  SetAdminCodeUseCase,
   SetUserActiveUseCase,
   StockMovementRecorder,
   UpdateProductUseCase,
@@ -120,6 +122,7 @@ export function createContainer(env: Env) {
   const useCases = {
     login: new LoginUseCase(users, hasher, tokens),
     getCurrentUser: new GetCurrentUserUseCase(users),
+    setAdminCode: new SetAdminCodeUseCase(users, hasher, clock),
 
     registerAdmin: new RegisterAdminUseCase(users, hasher, ids, clock),
     listUsers: new ListUsersUseCase(users),
@@ -139,6 +142,7 @@ export function createContainer(env: Env) {
     revokeKioskDevice: new RevokeKioskDeviceUseCase(kioskDevices, users, clock),
     authenticateKioskDevice: new AuthenticateKioskDeviceUseCase(kioskDevices, clock),
     listKioskPeople: new ListKioskPeopleUseCase(users, clock),
+    kioskAdminSession: new KioskAdminSessionUseCase(users, kioskDevices, hasher, tokens, clock),
     kioskRegisterMovements: new KioskRegisterMovementsUseCase(
       uow,
       users,

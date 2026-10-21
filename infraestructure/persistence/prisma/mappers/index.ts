@@ -37,6 +37,7 @@ export function toUser(row: Db.User): User {
     pinHash: row.pinHash,
     failedPinAttempts: row.failedPinAttempts,
     pinLockedUntil: row.pinLockedUntil,
+    adminCodeHash: row.adminCodeHash,
     role: row.role,
     isActive: row.isActive,
     createdAt: row.createdAt,
@@ -54,6 +55,7 @@ export function fromUser(user: User) {
     pinHash: user.pinHash,
     failedPinAttempts: user.failedPinAttempts,
     pinLockedUntil: user.pinLockedUntil,
+    adminCodeHash: user.adminCodeHash,
     role: user.role,
     isActive: user.isActive,
     createdAt: user.createdAt,
@@ -68,6 +70,7 @@ export function toProduct(row: Db.Product): Product {
   return Product.restore({
     id: row.id,
     name: row.name,
+    code: row.code,
     description: row.description,
     unit: row.unit,
     quantity: row.quantity,
@@ -84,6 +87,7 @@ export function fromProduct(product: Product) {
   return {
     id: product.id,
     name: product.name,
+    code: product.code,
     description: product.description,
     unit: product.unit,
     quantity: product.quantity,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   InventoryMovement,
+  Money,
   MovementActorPolicy,
   MovementSource,
   MovementType,
@@ -119,6 +120,46 @@ describe('InventoryMovement', () => {
         stockChange: type === MovementType.IN ? { before: 5, after: 6 } : { before: 5, after: 4 },
       }),
     ).toThrow(expect.objectContaining({ code: 'INCONSISTENT_MOVEMENT' }));
+  });
+
+  it('las entradas y salidas manuales guardan su precio; las de compra no (lo toman del ítem)', () => {
+    const price = Money.fromDecimal('2500');
+    const manualIn = InventoryMovement.record({
+      ...base,
+      type: MovementType.IN,
+      quantity: Quantity.create(2),
+      stockChange: { before: 5, after: 7 },
+      unitPrice: price,
+    });
+    const manualOut = InventoryMovement.record({
+      ...base,
+      type: MovementType.OUT,
+      quantity: Quantity.create(1),
+      stockChange: { before: 7, after: 6 },
+      unitPrice: price,
+    });
+    const purchaseIn = InventoryMovement.record({
+      ...base,
+      type: MovementType.IN,
+      source: MovementSource.PURCHASE,
+      purchaseItemId: 'item-1',
+      quantity: Quantity.create(2),
+      stockChange: { before: 6, after: 8 },
+      unitPrice: price,
+    });
+    const voidOut = InventoryMovement.record({
+      ...base,
+      type: MovementType.OUT,
+      source: MovementSource.PURCHASE_VOID,
+      quantity: Quantity.create(2),
+      stockChange: { before: 8, after: 6 },
+      unitPrice: price,
+    });
+    expect(manualIn.unitPrice?.toDecimalString()).toBe('2500.00');
+    expect(manualIn.isWithdrawal()).toBe(false);
+    expect(manualOut.unitPrice?.toDecimalString()).toBe('2500.00');
+    expect(purchaseIn.unitPrice).toBeNull();
+    expect(voidOut.unitPrice).toBeNull();
   });
 
   it('la reversión de una compra es una salida que no cuenta como retiro', () => {

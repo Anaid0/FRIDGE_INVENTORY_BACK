@@ -5,10 +5,12 @@ import {
   ConsumptionChargeGenerator,
   GenerateConsumptionChargesUseCase,
   GetPeriodChargesUseCase,
+  ListMovementsUseCase,
   ListPendingChargesUseCase,
   OpenFundingPeriodUseCase,
   PayConsumptionChargeUseCase,
   RegisterPurchaseUseCase,
+  RegisterStockInUseCase,
   RegisterStockOutUseCase,
   UpdateProductUseCase,
 } from '../../../application';
@@ -125,6 +127,27 @@ describe('Quien más consume, más aporta', () => {
 
     await close.execute(period.id, asAdmin);
     expect(owed((await getCharges.execute(period.id)).charges)).toEqual([['Pepito', '24000.00', 15]]);
+  });
+
+  it('las entradas manuales guardan su precio pero no suman al consumo de nadie', async () => {
+    const ctx = await setup();
+    const { take, pepito, pepita, agua, close, getCharges, period, asAdmin, uow, recorder, clock, repos } = ctx;
+    const stockIn = new RegisterStockInUseCase(uow, recorder, clock);
+    clock.set(new Date('2026-10-20T14:00:00Z'));
+    const gift = await stockIn.execute({ productId: agua.id, quantity: 6, performedBy: pepita.id }, asAdmin);
+    expect(gift.movement.unitPrice).toBe('1500.00'); // precio de la última compra
+    await take(pepito, agua.id, 2, '2026-10-20T15:00:00Z');
+
+    await close.execute(period.id, asAdmin);
+    expect(owed((await getCharges.execute(period.id)).charges)).toEqual([['Pepito', '3000.00', 2]]);
+
+    // En el historial: la entrada de la compra muestra el precio del ítem; la manual, el guardado.
+    const log = await new ListMovementsUseCase(repos.movements).execute({ productId: agua.id });
+    expect(log.items.map((m) => [m.type, m.source, m.unitPrice?.toDecimalString()])).toEqual([
+      ['OUT', 'MANUAL', '1500.00'],
+      ['IN', 'MANUAL', '1500.00'],
+      ['IN', 'PURCHASE', '1500.00'],
+    ]);
   });
 
   it('sin compras: usa el precio de referencia del producto; si tampoco hay, $0 y se avisa', async () => {

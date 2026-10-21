@@ -21,7 +21,7 @@ const viewInclude = {
   product: { select: { id: true, name: true, unit: true } },
   performer: userRefSelect,
   registrar: userRefSelect,
-  purchaseItem: { select: { purchaseId: true } },
+  purchaseItem: { select: { purchaseId: true, unitPrice: true } },
 } satisfies Prisma.InventoryMovementInclude;
 
 type MovementRow = Prisma.InventoryMovementGetPayload<{ include: typeof viewInclude }>;
@@ -50,7 +50,12 @@ function toView(row: MovementRow): MovementView {
     performedBy: toUserRef(row.performer),
     registeredBy: toUserRef(row.registrar),
     purchaseId: row.purchaseItem?.purchaseId ?? null,
-    unitPrice: row.unitPrice ? toMoney(row.unitPrice) : null,
+    // Los de compra no guardan precio propio: se muestra el del ítem de la compra.
+    unitPrice: row.unitPrice
+      ? toMoney(row.unitPrice)
+      : row.purchaseItem
+        ? toMoney(row.purchaseItem.unitPrice)
+        : null,
   };
 }
 

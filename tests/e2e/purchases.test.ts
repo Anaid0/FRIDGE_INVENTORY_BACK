@@ -109,6 +109,30 @@ describe('Quincenas, compras y reportes (e2e)', () => {
     expect((await api().get('/api/stats/top-withdrawers').set(bearer(adminToken))).body).toEqual([]);
   });
 
+  it('el historial (también desde la tablet) muestra el precio unitario de las entradas por compra', async () => {
+    const kioskToken = (
+      await api().post('/api/kiosk/devices').set(bearer(adminToken)).send({ name: 'Tablet' }).expect(201)
+    ).body.token;
+    const res = await api()
+      .get('/api/movements')
+      .query({ type: 'IN', page: 1, pageSize: 20 })
+      .set(bearer(kioskToken))
+      .expect(200);
+    expect(res.body).toMatchObject({ total: 2, page: 1, pageSize: 20 });
+    expect(
+      res.body.items
+        .map((m: { product: { name: string }; source: string; unitPrice: string }) => [
+          m.product.name,
+          m.source,
+          m.unitPrice,
+        ])
+        .sort(),
+    ).toEqual([
+      ['Gaseosa', 'PURCHASE', '2500.00'],
+      ['Yogur', 'PURCHASE', '3000.00'],
+    ]);
+  });
+
   it('descarga el comprobante', async () => {
     const res = await api().get(`/api/purchases/${purchaseId}/receipt`).set(bearer(adminToken)).expect(200);
     expect(res.headers['content-type']).toContain('image/png');

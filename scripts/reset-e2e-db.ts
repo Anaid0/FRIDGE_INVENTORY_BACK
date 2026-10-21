@@ -6,6 +6,7 @@ import { e2eEnv } from './e2eEnv';
 /**
  * Deja la base de tests en un estado conocido para los e2e del navegador:
  * migraciones al día, tablas vacías, admin + categorías (seed) y datos de demostración.
+ * El admin (ADMIN_EMAIL / ADMIN_PASSWORD del .env) queda con el código E2E_ADMIN_CODE para la tablet.
  */
 async function main() {
   const env = e2eEnv();

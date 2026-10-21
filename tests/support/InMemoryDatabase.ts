@@ -70,6 +70,7 @@ export const clone = {
       pinHash: u.pinHash,
       failedPinAttempts: u.failedPinAttempts,
       pinLockedUntil: u.pinLockedUntil,
+      adminCodeHash: u.adminCodeHash,
       role: u.role,
       isActive: u.isActive,
       createdAt: u.createdAt,
@@ -80,6 +81,7 @@ export const clone = {
     Product.restore({
       id: p.id,
       name: p.name,
+      code: p.code,
       description: p.description,
       unit: p.unit,
       quantity: p.quantity,

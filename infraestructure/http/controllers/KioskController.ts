@@ -1,7 +1,12 @@
 import type { Request, Response } from 'express';
 import type { UseCases } from '../../config/container';
 import { actorOf, kioskDeviceOf, param } from '../requestContext';
-import { changeOwnPinSchema, kioskMovementSchema, pairKioskSchema } from '../schemas';
+import {
+  changeOwnPinSchema,
+  kioskAdminSessionSchema,
+  kioskMovementSchema,
+  pairKioskSchema,
+} from '../schemas';
 
 /** Tablets: el admin las autoriza/revoca; la tablet lista personas y registra movimientos con PIN. */
 export class KioskController {
@@ -15,6 +20,7 @@ export class KioskController {
       | 'kioskRegisterMovements'
       | 'changeOwnPin'
       | 'changeOwnPinByPin'
+      | 'kioskAdminSession'
     >,
   ) {}
 
@@ -57,6 +63,12 @@ export class KioskController {
     const input = changeOwnPinSchema.parse(req.body);
     await this.useCases.changeOwnPin.execute({ personId: param(req, 'id'), ...input });
     res.status(204).end();
+  };
+
+  /** Un admin marca su código en el teclado: devuelve una sesión de admin (igual que /auth/login). */
+  adminSession = async (req: Request, res: Response) => {
+    const { code } = kioskAdminSessionSchema.parse(req.body);
+    res.json(await this.useCases.kioskAdminSession.execute(kioskDeviceOf(req).id, code));
   };
 
   /** Cambiar el PIN sin elegir nombre: el PIN actual identifica a la persona. Devuelve su nombre. */

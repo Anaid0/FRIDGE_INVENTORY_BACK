@@ -8,6 +8,7 @@ import {
   RegisterStockOutUseCase,
   UpdateProductUseCase,
 } from '../../../application';
+import { ProductCode } from '../../../domain';
 import { createOfficeContext } from '../../support/testContext';
 
 async function setup() {
@@ -169,5 +170,82 @@ describe('ListProductsUseCase / GetProductUseCase', () => {
       performedBy: { name: 'Ana' },
     });
     await expect(getProduct.execute('nope')).rejects.toMatchObject({ code: 'PRODUCT_NOT_FOUND' });
+  });
+});
+
+describe('Código del teclado de los productos', () => {
+  it('sin código, asigna el primero libre en filas de 4 (11-14, 21-24…)', async () => {
+    const { createProduct, asAdmin } = await setup();
+    const codes = [];
+    for (const name of ['A', 'B', 'C', 'D', 'E', 'F']) {
+      codes.push((await createProduct.execute({ name, code: null }, asAdmin)).code);
+    }
+    expect(codes).toEqual(['11', '12', '13', '14', '21', '22']);
+  });
+
+  it('salta los códigos ocupados (también los de productos inactivos) y rellena huecos', async () => {
+    const { createProduct, seedProduct, asAdmin } = await setup();
+    await seedProduct('Viejo', { code: '11', isActive: false });
+    await seedProduct('Agua', { code: '13' });
+    expect((await createProduct.execute({ name: 'Yogur' }, asAdmin)).code).toBe('12');
+    expect((await createProduct.execute({ name: 'Papas' }, asAdmin)).code).toBe('14');
+  });
+
+  it('después de 91-94 sigue con 15-19 y al final 10, 20 … 90; si no queda ninguno, falla', async () => {
+    const { createProduct, seedProduct, asAdmin } = await setup();
+    for (const code of ProductCode.assignmentOrder.slice(0, 36)) await seedProduct(`P${code}`, { code });
+    expect((await createProduct.execute({ name: 'Nuevo 1' }, asAdmin)).code).toBe('15');
+    for (const code of ProductCode.assignmentOrder.slice(37, 81)) await seedProduct(`P${code}`, { code });
+    expect((await createProduct.execute({ name: 'Nuevo 2' }, asAdmin)).code).toBe('10');
+    for (const code of ProductCode.assignmentOrder.slice(82)) await seedProduct(`P${code}`, { code });
+    await expect(createProduct.execute({ name: 'Nuevo 3' }, asAdmin)).rejects.toMatchObject({
+      code: 'NO_PRODUCT_CODE_AVAILABLE',
+    });
+  });
+
+  it('acepta un código elegido; si ya lo tiene otro producto (activo o no) da conflicto', async () => {
+    const { createProduct, seedProduct, asAdmin, db } = await setup();
+    expect((await createProduct.execute({ name: 'Agua', code: '57' }, asAdmin)).code).toBe('57');
+    const viejo = await seedProduct('Viejo', { code: '42', isActive: false });
+    await expect(createProduct.execute({ name: 'Yogur', code: '42' }, asAdmin)).rejects.toMatchObject({
+      kind: 'CONFLICT',
+      code: 'PRODUCT_CODE_TAKEN',
+      message: 'El código 42 ya lo tiene Viejo',
+      details: { code: '42', productId: viejo.id },
+    });
+    await expect(createProduct.execute({ name: 'Yogur', code: '05' }, asAdmin)).rejects.toMatchObject({
+      code: 'INVALID_PRODUCT_CODE',
+    });
+    expect([...db.products.values()].map((p) => p.name).sort()).toEqual(['Agua', 'Viejo']);
+  });
+
+  it('al editar se puede cambiar el código, pero no a uno ocupado; repetir el propio sí', async () => {
+    const { updateProduct, seedProduct, asAdmin } = await setup();
+    const gaseosa = await seedProduct('Gaseosa', { code: '11' });
+    const yogur = await seedProduct('Yogur', { code: '12' });
+    expect((await updateProduct.execute(gaseosa.id, { code: '11' }, asAdmin)).code).toBe('11');
+    expect((await updateProduct.execute(gaseosa.id, { code: '35' }, asAdmin)).code).toBe('35');
+    await expect(updateProduct.execute(gaseosa.id, { code: '12' }, asAdmin)).rejects.toMatchObject({
+      code: 'PRODUCT_CODE_TAKEN',
+      message: 'El código 12 ya lo tiene Yogur',
+      details: { code: '12', productId: yogur.id },
+    });
+    await expect(updateProduct.execute(gaseosa.id, { code: '9' }, asAdmin)).rejects.toMatchObject({
+      code: 'INVALID_PRODUCT_CODE',
+    });
+    // Editar otros datos conserva el código
+    expect((await updateProduct.execute(gaseosa.id, { minStock: 4 }, asAdmin)).code).toBe('35');
+  });
+
+  it('la lista incluye el código y se puede buscar por código o por nombre', async () => {
+    const { listProducts, seedProduct } = await setup();
+    await seedProduct('Gaseosa', { code: '11' });
+    await seedProduct('Yogur', { code: '21' });
+    expect((await listProducts.execute()).map((p) => [p.name, p.code])).toEqual([
+      ['Gaseosa', '11'],
+      ['Yogur', '21'],
+    ]);
+    expect((await listProducts.execute({ search: '21' })).map((p) => p.name)).toEqual(['Yogur']);
+    expect((await listProducts.execute({ search: 'gase' })).map((p) => p.name)).toEqual(['Gaseosa']);
   });
 });

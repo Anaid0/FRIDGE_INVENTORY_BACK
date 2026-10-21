@@ -1,4 +1,4 @@
-import { Email, UnauthorizedError, ValidationError, type UserRepository } from '../../domain';
+import { Email, UnauthorizedError, ValidationError, type User, type UserRepository } from '../../domain';
 import { toUserDto, type UserDto } from '../dto';
 import type { PasswordHasher, TokenService } from '../ports';
 
@@ -10,6 +10,11 @@ export interface LoginInput {
 export interface LoginResult {
   token: string;
   user: UserDto;
+}
+
+/** Sesión de admin: la misma respuesta (y el mismo token) para el login con email y con código en la tablet. */
+export function sessionFor(user: User, tokens: TokenService): LoginResult {
+  return { token: tokens.sign({ sub: user.id, role: user.role }), user: toUserDto(user) };
 }
 
 const invalidCredentials = () =>
@@ -37,9 +42,6 @@ export class LoginUseCase {
     if (!user || !user.isActive || !user.canLogIn() || !user.passwordHash) throw invalidCredentials();
     if (!(await this.hasher.verify(input.password ?? '', user.passwordHash))) throw invalidCredentials();
 
-    return {
-      token: this.tokens.sign({ sub: user.id, role: user.role }),
-      user: toUserDto(user),
-    };
+    return sessionFor(user, this.tokens);
   }
 }

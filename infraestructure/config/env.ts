@@ -23,6 +23,14 @@ const envSchema = z.object({
   ADMIN_LASTNAME: z.string().min(1).default('FridgeYA'),
   ADMIN_EMAIL: z.email(),
   ADMIN_PASSWORD: z.string().min(8, 'ADMIN_PASSWORD debe tener al menos 8 caracteres'),
+  /** Opcional: código (4 a 6 dígitos) con el que el admin inicial entra desde la tablet. Vacío = sin código. */
+  ADMIN_CODE: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z
+      .string()
+      .regex(/^\d{4,6}$/, 'ADMIN_CODE debe tener de 4 a 6 dígitos')
+      .optional(),
+  ),
 
   CURRENCY: z.string().length(3).default('COP'),
   /** Zona horaria de la oficina: define cuándo empieza y termina cada día de una quincena. */

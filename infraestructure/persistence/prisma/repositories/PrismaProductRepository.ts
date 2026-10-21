@@ -21,12 +21,24 @@ export class PrismaProductRepository implements ProductRepository {
     return row ? toProduct(row) : null;
   }
 
+  async findByCode(code: string) {
+    const row = await this.db.product.findUnique({ where: { code: code.trim() } });
+    return row ? toProduct(row) : null;
+  }
+
+  async findTakenCodes() {
+    const rows = await this.db.product.findMany({ where: { code: { not: null } }, select: { code: true } });
+    return rows.map((row) => row.code as string);
+  }
+
   async findAll(filter: ProductFilter = {}) {
     const rows = await this.db.product.findMany({
       where: {
         isActive: filter.includeInactive ? undefined : true,
         categoryId: filter.categoryId,
-        ...(filter.search && { name: { contains: filter.search } }),
+        ...(filter.search && {
+          OR: [{ name: { contains: filter.search } }, { code: { contains: filter.search } }],
+        }),
         // Comparación entre columnas: quantity <= min_stock
         ...(filter.lowStock && { quantity: { lte: this.db.product.fields.minStock } }),
       },

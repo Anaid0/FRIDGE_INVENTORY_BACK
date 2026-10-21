@@ -9,11 +9,13 @@ export interface UserDto {
   email: string | null;
   role: Role;
   isActive: boolean;
+  /** Si el admin ya tiene código para entrar desde la tablet (nunca se expone el código ni su hash). */
+  hasAdminCode: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
-/** Nunca expone hashes de contraseña ni de PIN. */
+/** Nunca expone hashes de contraseña, de PIN ni del código de administrador. */
 export function toUserDto(user: User): UserDto {
   return {
     id: user.id,
@@ -23,6 +25,7 @@ export function toUserDto(user: User): UserDto {
     email: user.email?.value ?? null,
     role: user.role,
     isActive: user.isActive,
+    hasAdminCode: user.hasAdminCode(),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };

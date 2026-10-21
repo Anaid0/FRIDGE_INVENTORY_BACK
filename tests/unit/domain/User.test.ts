@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AdminCode,
   Email,
   isRole,
   Pin,
@@ -188,6 +189,49 @@ describe('PlainPassword', () => {
   it('rechaza más de 72 bytes (límite de bcrypt)', () => {
     expect(() => PlainPassword.create(`a1${'ñ'.repeat(36)}`)).toThrow(
       expect.objectContaining({ code: 'PASSWORD_TOO_LONG' }),
+    );
+  });
+});
+
+describe('AdminCode', () => {
+  it.each(['4829', '48291', '482915', ' 2580 '])('acepta %s', (raw) => {
+    expect(AdminCode.create(raw).value).toBe(raw.trim());
+  });
+
+  it.each(['', '123', '1234567', '12a4', '12 34'])('rechaza el formato de "%s"', (raw) => {
+    expect(() => AdminCode.create(raw)).toThrow(
+      expect.objectContaining({ code: 'INVALID_ADMIN_CODE_FORMAT', message: expect.stringMatching(/4 a 6/) }),
+    );
+  });
+
+  it.each(['0000', '111111', '1234', '123456', '4321', '654321', '34567', '98765'])(
+    'rechaza el código trivial %s',
+    (raw) => {
+      expect(() => AdminCode.create(raw)).toThrow(
+        expect.objectContaining({
+          code: 'INVALID_ADMIN_CODE_FORMAT',
+          message: expect.stringMatching(/fácil/),
+        }),
+      );
+    },
+  );
+});
+
+describe('User: código de administrador', () => {
+  it('un admin empieza sin código y lo puede definir', () => {
+    const admin = makeAdmin();
+    expect(admin.hasAdminCode()).toBe(false);
+    expect(admin.adminCodeHash).toBeNull();
+    admin.changeAdminCode('code-hash', LATER);
+    expect(admin.hasAdminCode()).toBe(true);
+    expect(admin.adminCodeHash).toBe('code-hash');
+    expect(admin.updatedAt).toBe(LATER);
+    expect(() => admin.changeAdminCode(' ', LATER)).toThrow(ValidationError);
+  });
+
+  it('una persona no tiene código de administrador', () => {
+    expect(() => makePerson().changeAdminCode('code-hash', LATER)).toThrow(
+      expect.objectContaining({ code: 'NOT_AN_ADMIN' }),
     );
   });
 });

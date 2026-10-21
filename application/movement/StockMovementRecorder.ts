@@ -47,11 +47,12 @@ export class StockMovementRecorder {
         : product.removeStock(input.quantity, input.now);
     await repos.products.save(product);
 
-    // Lo que alguien saca queda valorado al precio de la última compra (o el de referencia del producto):
-    // así se calcula cuánto aporta cada uno al siguiente mercado, aunque después el precio cambie.
+    // Lo que alguien saca (o mete a mano) queda valorado al precio de la última compra (o el de referencia
+    // del producto): con las salidas se calcula cuánto aporta cada uno al siguiente mercado, aunque después
+    // el precio cambie; en las entradas es solo informativo para el historial.
     const source = input.source ?? MovementSource.MANUAL;
     const unitPrice =
-      input.type === MovementType.OUT && source === MovementSource.MANUAL
+      source === MovementSource.MANUAL
         ? ((await repos.purchases.findLatestUnitPrices([product.id], input.now)).get(product.id) ??
           product.referencePrice)
         : null;

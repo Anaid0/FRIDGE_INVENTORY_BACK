@@ -124,10 +124,19 @@ export class InMemoryProductRepository implements ProductRepository {
     const product = [...this.db.products.values()].find((p) => sameText(p.name, name));
     return product ? clone.product(product) : null;
   }
+  async findByCode(code: string) {
+    const product = [...this.db.products.values()].find((p) => p.code === code.trim());
+    return product ? clone.product(product) : null;
+  }
+  async findTakenCodes() {
+    return [...this.db.products.values()].flatMap((p) => (p.code ? [p.code] : []));
+  }
   async findAll(filter: ProductFilter = {}) {
     return [...this.db.products.values()]
       .filter((p) => filter.includeInactive || p.isActive)
-      .filter((p) => !filter.search || contains(p.name, filter.search))
+      .filter(
+        (p) => !filter.search || contains(p.name, filter.search) || contains(p.code ?? '', filter.search),
+      )
       .filter((p) => !filter.categoryId || p.categoryId === filter.categoryId)
       .filter((p) => !filter.lowStock || p.isLowStock())
       .sort((a, b) => a.name.localeCompare(b.name))
@@ -232,7 +241,7 @@ export class InMemoryMovementRepository implements MovementRepository {
       performedBy: userRef(this.db, m.performedBy),
       registeredBy: userRef(this.db, m.registeredBy),
       purchaseId: purchase?.id ?? null,
-      unitPrice: m.unitPrice,
+      unitPrice: m.unitPrice ?? purchase?.items.find((i) => i.id === m.purchaseItemId)?.unitPrice ?? null,
     };
   }
 }
